@@ -10,6 +10,7 @@ import type {
 } from '../services/localState'
 
 type SprintWorkbenchPanelProps = {
+  mode?: 'current' | 'future' | 'past'
   activeSquad: Squad | undefined
   history: SquadSnapshot[]
   latest: SquadSnapshot | null
@@ -31,6 +32,7 @@ type SprintWorkbenchPanelProps = {
 }
 
 export function SprintWorkbenchPanel({
+  mode = 'current',
   activeSquad,
   history,
   latest,
@@ -90,235 +92,278 @@ export function SprintWorkbenchPanel({
     return { delivered, open, byAssignee }
   }, [tickets])
 
+  const headerDetails = {
+    current: {
+      title: '// CURRENT SPRINT',
+      subtitle: 'Active sprint control, goals checklist, and squad availability',
+      icon: Zap
+    },
+    future: {
+      title: '// FUTURE PLANNING',
+      subtitle: 'Create upcoming sprints, define goals, and manage the sprint queue',
+      icon: CalendarDays
+    },
+    past: {
+      title: '// PAST & PERFORMANCE',
+      subtitle: 'Squad delivery statistics, historical snapshot trends, and metrics',
+      icon: BarChart3
+    }
+  }[mode]
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, overflowY: 'auto' }}>
       <Header
-        title="// SPRINT WORKBENCH"
-        subtitle="Future sprint planning, current sprint control, reports, charts, and availability"
-        icon={Activity}
+        title={headerDetails.title}
+        subtitle={headerDetails.subtitle}
+        icon={headerDetails.icon}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '10px' }}>
-        <Metric label="Current Sprint" value={current ? current.name : 'None'} helper={current ? `${current.start_date} to ${current.end_date}` : 'no active sprint set'} />
-        <Metric label="Squad Load" value={`${squadLoad}%`} helper={latest ? `${latest.assigned_points} SP of ${latest.total_effective_capacity.toFixed(0)} SP` : 'waiting on squad snapshot'} />
-        <Metric label="Delivery Rate" value={`${deliveryRate}%`} helper={historyTrend >= 0 ? `${historyTrend} SP trend` : `${Math.abs(historyTrend)} SP drop`} />
-        <Metric label="Capacity Buffer" value={`${capacityBuffer}%`} helper="safe work left after assigned scope" />
-      </div>
+      {mode === 'current' && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '10px' }}>
+            <Metric label="Current Sprint" value={current ? current.name : 'None'} helper={current ? `${current.start_date} to ${current.end_date}` : 'no active sprint set'} />
+            <Metric label="Squad Load" value={`${squadLoad}%`} helper={latest ? `${latest.assigned_points} SP of ${latest.total_effective_capacity.toFixed(0)} SP` : 'waiting on squad snapshot'} />
+            <Metric label="Capacity Buffer" value={`${capacityBuffer}%`} helper="safe work left after assigned scope" />
+            <Metric label="Active PTOs" value={`${availabilityEvents.length}`} helper="scheduled leave events" />
+          </div>
 
-      <Band title="Sprint Planning" icon={CalendarDays}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(0, 0.9fr)', gap: '12px' }}>
-          <section style={sectionStyle}>
-            <Subhead title="Create Future Sprint" />
-            <div style={{ display: 'grid', gap: '8px' }}>
-              <Field label="Sprint name" value={sprintName} onChange={setSprintName} placeholder="Sprint 16" />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
-                <Field label="Start date" value={sprintStart} onChange={setSprintStart} type="date" />
-                <Field label="End date" value={sprintEnd} onChange={setSprintEnd} type="date" />
-              </div>
-              <Field label="Primary goal" value={sprintGoal} onChange={setSprintGoal} placeholder="Ship availability-aware planning" />
-              <button
-                onClick={() => {
-                  if (!sprintName.trim()) return
-                  onCreateSprint({
-                    name: sprintName.trim(),
-                    start_date: sprintStart,
-                    end_date: sprintEnd,
-                    goal: sprintGoal.trim()
-                  })
-                  setSprintName('')
-                  setSprintGoal('Deliver planned scope')
-                }}
-                style={primaryButtonStyle}
-              >
-                <Plus size={14} />
-                Create sprint
-              </button>
-            </div>
-          </section>
-
-          <section style={sectionStyle}>
-            <Subhead title="Current Sprint" />
-            {current ? (
-              <div style={{ display: 'grid', gap: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: 'bold', color: 'var(--foreground)' }}>{current.name}</div>
-                    <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace" }}>
-                      {current.start_date} → {current.end_date}
+          <Band title="Current Sprint Details" icon={Zap}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+              <section style={sectionStyle}>
+                {current ? (
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: 'var(--foreground)' }}>{current.name}</div>
+                        <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace" }}>
+                          {current.start_date} → {current.end_date}
+                        </div>
+                      </div>
+                      <Badge label={current.status.toUpperCase()} />
+                    </div>
+                    <Bar value={squadLoad} tone={squadLoad > 100 ? 'danger' : squadLoad >= 80 ? 'warning' : 'good'} />
+                    <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>
+                      Sprint workload: {sprintWorkload} SP open, {latest?.delivered_points || 0} SP delivered, {latest?.carryover_points || 0} SP carryover
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {current.goals.map((goal) => (
+                        <span key={goal.id} style={goalChipStyle(goal.status)}>
+                          {goal.title}
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => onCompleteSprint(current.id)} style={secondaryButtonStyle}>
+                        <CheckCircle2 size={14} />
+                        Mark complete
+                      </button>
                     </div>
                   </div>
-                  <Badge label={current.status.toUpperCase()} />
-                </div>
-                <Bar value={squadLoad} tone={squadLoad > 100 ? 'danger' : squadLoad >= 80 ? 'warning' : 'good'} />
-                <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>
-                  Sprint workload: {sprintWorkload} SP open, {latest?.delivered_points || 0} SP delivered, {latest?.carryover_points || 0} SP carryover
-                </div>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {current.goals.map((goal) => (
-                    <span key={goal.id} style={goalChipStyle(goal.status)}>
-                      {goal.title}
-                    </span>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => onCompleteSprint(current.id)} style={secondaryButtonStyle}>
-                    <CheckCircle2 size={14} />
-                    Mark complete
+                ) : (
+                  <EmptyState text="No current sprint selected." />
+                )}
+              </section>
+            </div>
+          </Band>
+
+          <Band title="Squad Availability & Leave" icon={Users}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 0.8fr)', gap: '12px' }}>
+              <section style={sectionStyle}>
+                <Subhead title="Add Availability Event" />
+                <div style={{ display: 'grid', gap: '8px', marginTop: '6px' }}>
+                  <Field label="Developer" value={availabilityDeveloper} onChange={setAvailabilityDeveloper} asSelect options={activeSquad?.developers.map((dev) => ({ value: dev.id, label: dev.name })) || []} />
+                  <Field label="Type" value={availabilityType} onChange={(value) => setAvailabilityType(value as AvailabilityEvent['type'])} asSelect options={[
+                    { value: 'vacation', label: 'Vacation' },
+                    { value: 'sick', label: 'Sick' },
+                    { value: 'pto', label: 'PTO' }
+                  ]} />
+                  <Field label="Title" value={availabilityTitle} onChange={setAvailabilityTitle} />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+                    <Field label="Start" value={availabilityStart} onChange={setAvailabilityStart} type="date" />
+                    <Field label="End" value={availabilityEnd} onChange={setAvailabilityEnd} type="date" />
+                  </div>
+                  <Field label="Notes" value={availabilityNotes} onChange={setAvailabilityNotes} placeholder="Optional note" />
+                  <button
+                    onClick={() => {
+                      if (!availabilityDeveloper || !availabilityTitle.trim()) return
+                      onAddAvailabilityEvent({
+                        developer_id: availabilityDeveloper,
+                        type: availabilityType,
+                        title: availabilityTitle.trim(),
+                        start_date: availabilityStart,
+                        end_date: availabilityEnd,
+                        notes: availabilityNotes.trim() || undefined
+                      })
+                      setAvailabilityNotes('')
+                    }}
+                    style={primaryButtonStyle}
+                  >
+                    <Plus size={14} />
+                    Add event
                   </button>
                 </div>
-              </div>
-            ) : (
-              <EmptyState text="No current sprint selected." />
-            )}
-          </section>
-        </div>
-      </Band>
+              </section>
 
-      <Band title="Sprint Report" icon={BarChart3}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '10px' }}>
-          <Metric label="Delivered" value={`${latest?.delivered_points || 0} SP`} helper={`${deliveryRate}% of assigned`} />
-          <Metric label="Open" value={`${latest?.open_points || 0} SP`} helper="unfinished sprint scope" />
-          <Metric label="Carryover" value={`${latest?.carryover_points || 0} SP`} helper="work that crossed snapshots" />
-          <Metric label="Overdue" value={`${latest?.overdue_points || 0} SP`} helper="open work beyond safe capacity" />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 0.8fr)', gap: '12px' }}>
-          <section style={sectionStyle}>
-            <Subhead title="History" />
-            <div style={{ display: 'grid', gap: '8px' }}>
-              {history.slice(-10).reverse().map((snapshot) => (
-                <div key={snapshot.id} style={{ display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr) 48px', gap: '8px', alignItems: 'center' }}>
-                  <span style={monoLabelStyle}>{new Date(snapshot.captured_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  <Bar value={Math.min(100, Math.round(snapshot.load_ratio * 100))} tone={snapshot.status === 'overloaded' ? 'danger' : snapshot.status === 'warning' ? 'warning' : 'good'} />
-                  <span style={monoLabelStyle}>{Math.round(snapshot.load_ratio * 100)}%</span>
+              <section style={sectionStyle}>
+                <Subhead title="Scheduled Events" />
+                <div style={{ display: 'grid', gap: '8px', marginTop: '6px' }}>
+                  <MiniStat label="Developers" value={`${activeSquad?.developers.length || 0}`} />
+                  <MiniStat label="Events" value={`${availabilityEvents.length}`} />
+                  <MiniStat label="Scheduled PTO / Sick" value={`${availabilityEvents.filter((event) => event.type !== 'pto').length}`} />
+                  <div style={{ marginTop: '8px', display: 'grid', gap: '8px' }}>
+                    {availabilityEvents.slice(-6).reverse().map((event) => (
+                      <div key={event.id} style={eventRowStyle}>
+                        <div>
+                          <div style={{ color: 'var(--foreground)', fontWeight: 'bold' }}>{event.title}</div>
+                          <div style={subtleLabelStyle}>{event.start_date} → {event.end_date}</div>
+                        </div>
+                        <Badge label={event.type.toUpperCase()} />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              </section>
             </div>
-          </section>
-          <section style={sectionStyle}>
-            <Subhead title="Project Report" />
-            <MiniStat label="Total Delivered" value={`${reportTotals.delivered} SP`} />
-            <MiniStat label="Open Work" value={`${reportTotals.open} SP`} />
-            <MiniStat label="Backlog Ratio" value={`${Math.round((reportTotals.open / Math.max((reportTotals.delivered + reportTotals.open) || 1, 1)) * 100)}%`} />
-            <div style={{ marginTop: '8px', display: 'grid', gap: '8px' }}>
-              <Bar value={Math.min(100, Math.round((reportTotals.delivered / Math.max((reportTotals.delivered + reportTotals.open) || 1, 1)) * 100))} tone="good" />
-              <Bar value={Math.min(100, Math.round((reportTotals.open / Math.max((reportTotals.delivered + reportTotals.open) || 1, 1)) * 100))} tone="warning" />
-            </div>
-          </section>
-        </div>
-      </Band>
+          </Band>
+        </>
+      )}
 
-      <Band title="User Report" icon={Users}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 0.8fr)', gap: '12px' }}>
-          <section style={sectionStyle}>
-            <Subhead title="Developer Comparison" />
-            <div style={{ display: 'grid', gap: '8px' }}>
-              {compareDevelopers.length ? compareDevelopers.map((dev) => (
-                <div key={dev.developer_id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(120px, 1fr) 56px', gap: '8px', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <strong style={{ color: 'var(--foreground)' }}>{dev.developer_name}</strong>
-                      <Badge label={dev.workload_label} />
+      {mode === 'future' && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
+            <Metric label="Upcoming Sprints" value={`${upcoming.length}`} helper="future sprints planned" />
+            <Metric label="Forecast Capacity" value={`${latest ? latest.total_effective_capacity.toFixed(0) : 0} SP`} helper="average squad capacity limit" />
+          </div>
+
+          <Band title="Sprint Planning" icon={CalendarDays}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(0, 0.9fr)', gap: '12px' }}>
+              <section style={sectionStyle}>
+                <Subhead title="Create Future Sprint" />
+                <div style={{ display: 'grid', gap: '8px', marginTop: '6px' }}>
+                  <Field label="Sprint name" value={sprintName} onChange={setSprintName} placeholder="Sprint 16" />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+                    <Field label="Start date" value={sprintStart} onChange={setSprintStart} type="date" />
+                    <Field label="End date" value={sprintEnd} onChange={setSprintEnd} type="date" />
+                  </div>
+                  <Field label="Primary goal" value={sprintGoal} onChange={setSprintGoal} placeholder="Ship availability-aware planning" />
+                  <button
+                    onClick={() => {
+                      if (!sprintName.trim()) return
+                      onCreateSprint({
+                        name: sprintName.trim(),
+                        start_date: sprintStart,
+                        end_date: sprintEnd,
+                        goal: sprintGoal.trim()
+                      })
+                      setSprintName('')
+                      setSprintGoal('Deliver planned scope')
+                    }}
+                    style={primaryButtonStyle}
+                  >
+                    <Plus size={14} />
+                    Create sprint
+                  </button>
+                </div>
+              </section>
+
+              <section style={sectionStyle}>
+                <Subhead title="Sprint Queue" />
+                <div style={{ display: 'grid', gap: '8px', marginTop: '6px' }}>
+                  {upcoming.length ? upcoming.map((plan) => (
+                    <div key={plan.id} style={eventRowStyle}>
+                      <div>
+                        <div style={{ color: 'var(--foreground)', fontWeight: 'bold' }}>{plan.name}</div>
+                        <div style={subtleLabelStyle}>{plan.start_date} → {plan.end_date}</div>
+                        <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--muted-foreground)' }}>{plan.goals.length} goals</div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                        <Badge label={plan.status.toUpperCase()} />
+                        <button onClick={() => onSetCurrentSprint(plan.id)} style={secondaryButtonStyle}>
+                          Set current
+                        </button>
+                      </div>
                     </div>
-                    <div style={subtleLabelStyle}>{dev.region} · {dev.ranking}</div>
-                  </div>
-                  <Bar value={Math.min(100, Math.round(dev.utilization * 100))} tone={dev.workload_label === 'OVERWORKED' ? 'danger' : dev.workload_label === 'NORMAL' ? 'warning' : 'good'} />
-                  <div style={{ textAlign: 'right', fontFamily: "'Share Tech Mono', monospace", fontSize: '11px', color: 'var(--foreground)' }}>
-                    {Math.round(dev.utilization * 100)}%
-                  </div>
+                  )) : <EmptyState text="No future sprint plans yet." />}
                 </div>
-              )) : <EmptyState text="No developer data available." />}
+              </section>
             </div>
-          </section>
+          </Band>
+        </>
+      )}
 
-          <section style={sectionStyle}>
-            <Subhead title="Availability" />
-            <MiniStat label="Developers" value={`${activeSquad?.developers.length || 0}`} />
-            <MiniStat label="Events" value={`${availabilityEvents.length}`} />
-            <MiniStat label="Scheduled PTO / Sick" value={`${availabilityEvents.filter((event) => event.type !== 'pto').length}`} />
-            <div style={{ marginTop: '8px', display: 'grid', gap: '8px' }}>
-              {availabilityEvents.slice(-4).reverse().map((event) => (
-                <div key={event.id} style={eventRowStyle}>
-                  <div>
-                    <div style={{ color: 'var(--foreground)', fontWeight: 'bold' }}>{event.title}</div>
-                    <div style={subtleLabelStyle}>{event.start_date} → {event.end_date}</div>
+      {mode === 'past' && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '10px' }}>
+            <Metric label="Last Delivery Rate" value={`${deliveryRate}%`} helper={historyTrend >= 0 ? `${historyTrend} SP trend` : `${Math.abs(historyTrend)} SP drop`} />
+            <Metric label="Total Delivered" value={`${reportTotals.delivered} SP`} helper="delivered across all sprints" />
+            <Metric label="Open Workload" value={`${latest?.open_points || 0} SP`} helper="unfinished sprint scope" />
+            <Metric label="Carryover Workload" value={`${latest?.carryover_points || 0} SP`} helper="work that crossed snapshots" />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 0.8fr)', gap: '12px' }}>
+            <Band title="Sprint Performance Report" icon={BarChart3}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <section style={sectionStyle}>
+                  <Subhead title="Project Report" />
+                  <div style={{ display: 'grid', gap: '6px', marginTop: '6px' }}>
+                    <MiniStat label="Total Delivered" value={`${reportTotals.delivered} SP`} />
+                    <MiniStat label="Open Work" value={`${reportTotals.open} SP`} />
+                    <MiniStat label="Backlog Ratio" value={`${Math.round((reportTotals.open / Math.max((reportTotals.delivered + reportTotals.open) || 1, 1)) * 100)}%`} />
+                    <div style={{ marginTop: '8px', display: 'grid', gap: '8px' }}>
+                      <Bar value={Math.min(100, Math.round((reportTotals.delivered / Math.max((reportTotals.delivered + reportTotals.open) || 1, 1)) * 100))} tone="good" />
+                      <Bar value={Math.min(100, Math.round((reportTotals.open / Math.max((reportTotals.delivered + reportTotals.open) || 1, 1)) * 100))} tone="warning" />
+                    </div>
                   </div>
-                  <Badge label={event.type.toUpperCase()} />
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      </Band>
-
-      <Band title="Current People" icon={Zap}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 0.8fr)', gap: '12px' }}>
-          <section style={sectionStyle}>
-            <Subhead title="Availability Event" />
-            <div style={{ display: 'grid', gap: '8px' }}>
-              <Field label="Developer" value={availabilityDeveloper} onChange={setAvailabilityDeveloper} asSelect options={activeSquad?.developers.map((dev) => ({ value: dev.id, label: dev.name })) || []} />
-              <Field label="Type" value={availabilityType} onChange={(value) => setAvailabilityType(value as AvailabilityEvent['type'])} asSelect options={[
-                { value: 'vacation', label: 'Vacation' },
-                { value: 'sick', label: 'Sick' },
-                { value: 'pto', label: 'PTO' }
-              ]} />
-              <Field label="Title" value={availabilityTitle} onChange={setAvailabilityTitle} />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
-                <Field label="Start" value={availabilityStart} onChange={setAvailabilityStart} type="date" />
-                <Field label="End" value={availabilityEnd} onChange={setAvailabilityEnd} type="date" />
+                </section>
+                <section style={sectionStyle}>
+                  <Subhead title="Squad Capacity Summary" />
+                  <div style={{ display: 'grid', gap: '6px', marginTop: '6px' }}>
+                    <MiniStat label="Delivered Workload" value={`${latest?.delivered_points || 0} SP`} />
+                    <MiniStat label="Carryover Workload" value={`${latest?.carryover_points || 0} SP`} />
+                    <MiniStat label="Forecast Capacity" value={`${latest?.available_capacity || latest?.total_effective_capacity || 0} SP`} />
+                  </div>
+                </section>
               </div>
-              <Field label="Notes" value={availabilityNotes} onChange={setAvailabilityNotes} placeholder="Optional note" />
-              <button
-                onClick={() => {
-                  if (!availabilityDeveloper || !availabilityTitle.trim()) return
-                  onAddAvailabilityEvent({
-                    developer_id: availabilityDeveloper,
-                    type: availabilityType,
-                    title: availabilityTitle.trim(),
-                    start_date: availabilityStart,
-                    end_date: availabilityEnd,
-                    notes: availabilityNotes.trim() || undefined
-                  })
-                  setAvailabilityNotes('')
-                }}
-                style={primaryButtonStyle}
-              >
-                <Plus size={14} />
-                Add event
-              </button>
-            </div>
-          </section>
+            </Band>
 
-          <section style={sectionStyle}>
-            <Subhead title="Sprint Queue" />
-            <div style={{ display: 'grid', gap: '8px' }}>
-              {upcoming.length ? upcoming.map((plan) => (
-                <div key={plan.id} style={eventRowStyle}>
-                  <div>
-                    <div style={{ color: 'var(--foreground)', fontWeight: 'bold' }}>{plan.name}</div>
-                    <div style={subtleLabelStyle}>{plan.start_date} → {plan.end_date}</div>
-                    <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--muted-foreground)' }}>{plan.goals.length} goals</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <Band title="Historical Snapshots" icon={Clock3}>
+                <section style={sectionStyle}>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {history.slice(-8).reverse().map((snapshot) => (
+                      <div key={snapshot.id} style={{ display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr) 48px', gap: '8px', alignItems: 'center' }}>
+                        <span style={monoLabelStyle}>{new Date(snapshot.captured_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <Bar value={Math.min(100, Math.round(snapshot.load_ratio * 100))} tone={snapshot.status === 'overloaded' ? 'danger' : snapshot.status === 'warning' ? 'warning' : 'good'} />
+                        <span style={monoLabelStyle}>{Math.round(snapshot.load_ratio * 100)}%</span>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
-                    <Badge label={plan.status.toUpperCase()} />
-                    <button onClick={() => onSetCurrentSprint(plan.id)} style={secondaryButtonStyle}>
-                      Set current
-                    </button>
-                  </div>
-                </div>
-              )) : <EmptyState text="No future sprint plans yet." />}
-            </div>
-          </section>
-        </div>
-      </Band>
+                </section>
+              </Band>
 
-      <Band title="Squad Report" icon={FileText}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '10px' }}>
-          <Metric label="Delivered Workload" value={`${latest?.delivered_points || 0} SP`} helper="squad output" />
-          <Metric label="Carryover Workload" value={`${latest?.carryover_points || 0} SP`} helper="unfinished work from previous snapshots" />
-          <Metric label="Forecast Capacity" value={`${latest?.available_capacity || latest?.total_effective_capacity || 0} SP`} helper="capacity after working days and leave" />
-        </div>
-      </Band>
+              <Band title="Developer Utilization" icon={Users}>
+                <section style={sectionStyle}>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {compareDevelopers.length ? compareDevelopers.map((dev) => (
+                      <div key={dev.developer_id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(80px, 1fr) 48px', gap: '8px', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <strong style={{ color: 'var(--foreground)', fontSize: '11px' }}>{dev.developer_name}</strong>
+                          </div>
+                        </div>
+                        <Bar value={Math.min(100, Math.round(dev.utilization * 100))} tone={dev.workload_label === 'OVERWORKED' ? 'danger' : dev.workload_label === 'NORMAL' ? 'warning' : 'good'} />
+                        <div style={{ textAlign: 'right', fontFamily: "'Share Tech Mono', monospace", fontSize: '10px', color: 'var(--foreground)' }}>
+                          {Math.round(dev.utilization * 100)}%
+                        </div>
+                      </div>
+                    )) : <EmptyState text="No developer data." />}
+                  </div>
+                </section>
+              </Band>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

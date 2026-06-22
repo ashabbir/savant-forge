@@ -35,7 +35,9 @@ import {
   Terminal,
   StopCircle,
   RefreshCcw,
-  CalendarDays
+  CalendarDays,
+  Zap,
+  History
 } from 'lucide-react'
 
 import {
@@ -2168,8 +2170,43 @@ function App() {
                 <SquadStatsPanel history={squadStatsHistory} latest={latestSquadSnapshot} />
               )}
 
-              {rightPanelTab === 'sprint-workbench' && (
+              {rightPanelTab === 'sprint-current' && (
                 <SprintWorkbenchPanel
+                  mode="current"
+                  activeSquad={activeSquad}
+                  history={squadStatsHistory}
+                  latest={latestSquadSnapshot}
+                  sprintPlans={sprintPlans}
+                  currentSprint={currentSprint}
+                  availabilityEvents={availabilityEvents}
+                  tickets={tickets}
+                  onCreateSprint={handleCreateSprint}
+                  onSetCurrentSprint={handleSetCurrentSprint}
+                  onCompleteSprint={handleCompleteSprint}
+                  onAddAvailabilityEvent={handleAddAvailabilityEvent}
+                />
+              )}
+
+              {rightPanelTab === 'sprint-future' && (
+                <SprintWorkbenchPanel
+                  mode="future"
+                  activeSquad={activeSquad}
+                  history={squadStatsHistory}
+                  latest={latestSquadSnapshot}
+                  sprintPlans={sprintPlans}
+                  currentSprint={currentSprint}
+                  availabilityEvents={availabilityEvents}
+                  tickets={tickets}
+                  onCreateSprint={handleCreateSprint}
+                  onSetCurrentSprint={handleSetCurrentSprint}
+                  onCompleteSprint={handleCompleteSprint}
+                  onAddAvailabilityEvent={handleAddAvailabilityEvent}
+                />
+              )}
+
+              {rightPanelTab === 'sprint-past' && (
+                <SprintWorkbenchPanel
+                  mode="past"
                   activeSquad={activeSquad}
                   history={squadStatsHistory}
                   latest={latestSquadSnapshot}
@@ -2471,11 +2508,25 @@ function App() {
                   <TrendingUp size={16} />
                 </button>
                 <button
-                  className={`nav-icon ${rightPanelOpen && rightPanelTab === 'sprint-workbench' ? 'active' : ''}`}
-                  onClick={() => handleRightRailClick('sprint-workbench')}
-                  title="Sprint Planning and Reports"
+                  className={`nav-icon ${rightPanelOpen && rightPanelTab === 'sprint-current' ? 'active' : ''}`}
+                  onClick={() => handleRightRailClick('sprint-current')}
+                  title="Current Sprint Details"
+                >
+                  <Zap size={16} />
+                </button>
+                <button
+                  className={`nav-icon ${rightPanelOpen && rightPanelTab === 'sprint-future' ? 'active' : ''}`}
+                  onClick={() => handleRightRailClick('sprint-future')}
+                  title="Future Sprint Planning"
                 >
                   <CalendarDays size={16} />
+                </button>
+                <button
+                  className={`nav-icon ${rightPanelOpen && rightPanelTab === 'sprint-past' ? 'active' : ''}`}
+                  onClick={() => handleRightRailClick('sprint-past')}
+                  title="Past Sprints & Reports"
+                >
+                  <History size={16} />
                 </button>
               </>
             )}
