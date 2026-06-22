@@ -1,0 +1,91 @@
+{
+  "name": "savant-forge",
+  "version": "1.0.0",
+  "description": "Savant Forge - Resource & Capability Management Engine",
+  "author": "Savant",
+  "main": "dist-electron/main.js",
+  "productName": "Savant Forge",
+  "scripts": {
+    "start": "electron .",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "package": "npm run build && electron-builder",
+    "preview": "vite preview",
+    "electron:dev": "concurrently -k \"npm run dev\" \"node scripts/wait-and-launch-electron.js\"",
+    "test": "vitest run"
+  },
+  "savantShell": {
+    "appName": "Savant Forge",
+    "icon": "main.svg",
+    "theme": "olympus",
+    "serverUrl": "http://127.0.0.1:8090",
+    "gatewayUrl": "http://127.0.0.1:3100"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.1.0",
+    "@types/react": "^18.2.79",
+    "@types/react-dom": "^18.2.25",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^2.1.9",
+    "concurrently": "^8.2.2",
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vite-plugin-electron": "^0.28.8",
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^2.1.5"
+  },
+  "build": {
+    "appId": "com.savant.forge",
+    "productName": "Savant Forge",
+    "icon": "build/icon.png",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "src/renderer/public",
+        "to": "public",
+        "filter": [
+          "main.svg",
+          "savant-sanctum.png",
+          "savant-sanctum-256.png",
+          "tray.svg",
+          "tray.png"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "category": "Development",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    }
+  }
+}

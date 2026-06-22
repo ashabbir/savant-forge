@@ -1,0 +1,109 @@
+{
+  "active_squad_id": "squad-alpha",
+  "current_sprint_id": "sprint-alpha-current",
+  "squads": [
+    {
+      "id": "squad-alpha",
+      "name": "Alpha Squad",
+      "developers": [
+        {
+          "id": "dev-1",
+          "name": "Alex Mercer",
+          "specialty": "Backend",
+          "ranking": "Senior",
+          "raw_capacity": 40,
+          "region": "north-america",
+          "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+          "timezone": "America/New_York"
+        },
+        {
+          "id": "dev-2",
+          "name": "Sarah Connor",
+          "specialty": "Frontend",
+          "ranking": "Mid",
+          "raw_capacity": 30,
+          "region": "europe",
+          "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+          "timezone": "Europe/London"
+        },
+        {
+          "id": "dev-3",
+          "name": "Miles Dyson",
+          "specialty": "Cloud Infra",
+          "ranking": "Principal",
+          "raw_capacity": 50,
+          "region": "apac",
+          "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+          "timezone": "Asia/Singapore"
+        },
+        {
+          "id": "dev-4",
+          "name": "John Connor",
+          "specialty": "Frontend",
+          "ranking": "Junior",
+          "raw_capacity": 20,
+          "region": "north-america",
+          "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+          "timezone": "America/Los_Angeles"
+        }
+      ]
+    },
+    {
+      "id": "squad-beta",
+      "name": "Beta Squad",
+      "developers": [
+        {
+          "id": "dev-5",
+          "name": "Ellen Ripley",
+          "specialty": "Backend",
+          "ranking": "Principal",
+          "raw_capacity": 45,
+          "region": "north-america",
+          "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+          "timezone": "America/Chicago"
+        },
+        {
+          "id": "dev-6",
+          "name": "Dwayne Hicks",
+          "specialty": "Cloud Infra",
+          "ranking": "Mid",
+          "raw_capacity": 35,
+          "region": "europe",
+          "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+          "timezone": "Europe/Berlin"
+        }
+      ]
+    }
+  ],
+  "buffer_threshold": 0.8,
+  "theme": "olympus",
+  "company_holidays_by_region": {
+    "north-america": [
+      {
+        "id": "holiday-na-1",
+        "region": "north-america",
+        "name": "Founders Day",
+        "date": "2026-07-03",
+        "recurring": true
+      }
+    ],
+    "europe": [
+      {
+        "id": "holiday-eu-1",
+        "region": "europe",
+        "name": "Summer Bank Holiday",
+        "date": "2026-08-31",
+        "recurring": true
+      }
+    ],
+    "apac": [
+      {
+        "id": "holiday-apac-1",
+        "region": "apac",
+        "name": "Founding Day",
+        "date": "2026-09-18",
+        "recurring": true
+      }
+    ]
+  }
+}
