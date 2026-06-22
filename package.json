@@ -64,7 +64,12 @@
           "savant-sanctum.png",
           "savant-sanctum-256.png",
           "tray.svg",
-          "tray.png"
+          "tray.png",
+          "tray@2x.png",
+          "tray@3x.png",
+          "trayTemplate.png",
+          "trayTemplate@2x.png",
+          "trayTemplate@3x.png"
         ]
       }
     ],
