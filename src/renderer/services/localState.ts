@@ -126,7 +126,13 @@ export async function getForgeConfig(): Promise<ForgeConfig> {
   const local = localStorage.getItem(STORAGE_CONFIG_KEY)
   if (local) {
     try {
-      return normalizeForgeConfig(JSON.parse(local))
+      const parsed = JSON.parse(local)
+      // Migration: if the local storage config does not have 'NY' or 'lisbon', force clear local storage config to reload new defaults
+      if (!parsed.company_holidays_by_region || (!parsed.company_holidays_by_region.NY && !parsed.company_holidays_by_region.lisbon)) {
+        localStorage.removeItem(STORAGE_CONFIG_KEY)
+      } else {
+        return normalizeForgeConfig(parsed)
+      }
     } catch {
       // fallback
     }
@@ -152,7 +158,24 @@ export async function getForgeConfig(): Promise<ForgeConfig> {
     buffer_threshold: 0.8,
     theme: 'olympus',
     current_sprint_id: '',
-    company_holidays_by_region: {}
+    company_holidays_by_region: {
+      "NY": [
+        { id: "holiday-ny-1", region: "NY", name: "New Year's Day", date: "2026-01-01", recurring: true },
+        { id: "holiday-ny-2", region: "NY", name: "Memorial Day", date: "2026-05-25", recurring: true },
+        { id: "holiday-ny-3", region: "NY", name: "Independence Day", date: "2026-07-04", recurring: true },
+        { id: "holiday-ny-4", region: "NY", name: "Labor Day", date: "2026-09-07", recurring: true },
+        { id: "holiday-ny-5", region: "NY", name: "Thanksgiving", date: "2026-11-26", recurring: true },
+        { id: "holiday-ny-6", region: "NY", name: "Christmas Day", date: "2026-12-25", recurring: true }
+      ],
+      "lisbon": [
+        { id: "holiday-pt-1", region: "lisbon", name: "Ano Novo", date: "2026-01-01", recurring: true },
+        { id: "holiday-pt-2", region: "lisbon", name: "Dia de Portugal", date: "2026-06-10", recurring: true },
+        { id: "holiday-pt-3", region: "lisbon", name: "Santo António", date: "2026-06-13", recurring: true },
+        { id: "holiday-pt-4", region: "lisbon", name: "Assunção de Nossa Senhora", date: "2026-08-15", recurring: true },
+        { id: "holiday-pt-5", region: "lisbon", name: "Imaculada Conceição", date: "2026-12-08", recurring: true },
+        { id: "holiday-pt-6", region: "lisbon", name: "Natal", date: "2026-12-25", recurring: true }
+      ]
+    }
   })
 }
 

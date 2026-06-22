@@ -12,7 +12,7 @@
           "specialty": "Backend",
           "ranking": "Senior",
           "raw_capacity": 40,
-          "region": "north-america",
+          "region": "NY",
           "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
           "timezone": "America/New_York"
         },
@@ -22,9 +22,9 @@
           "specialty": "Frontend",
           "ranking": "Mid",
           "raw_capacity": 30,
-          "region": "europe",
+          "region": "lisbon",
           "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-          "timezone": "Europe/London"
+          "timezone": "Europe/Lisbon"
         },
         {
           "id": "dev-3",
@@ -32,9 +32,9 @@
           "specialty": "Cloud Infra",
           "ranking": "Principal",
           "raw_capacity": 50,
-          "region": "apac",
+          "region": "NY",
           "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-          "timezone": "Asia/Singapore"
+          "timezone": "America/New_York"
         },
         {
           "id": "dev-4",
@@ -42,9 +42,9 @@
           "specialty": "Frontend",
           "ranking": "Junior",
           "raw_capacity": 20,
-          "region": "north-america",
+          "region": "NY",
           "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-          "timezone": "America/Los_Angeles"
+          "timezone": "America/New_York"
         }
       ]
     },
@@ -58,9 +58,9 @@
           "specialty": "Backend",
           "ranking": "Principal",
           "raw_capacity": 45,
-          "region": "north-america",
+          "region": "NY",
           "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-          "timezone": "America/Chicago"
+          "timezone": "America/New_York"
         },
         {
           "id": "dev-6",
@@ -68,9 +68,9 @@
           "specialty": "Cloud Infra",
           "ranking": "Mid",
           "raw_capacity": 35,
-          "region": "europe",
+          "region": "lisbon",
           "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-          "timezone": "Europe/Berlin"
+          "timezone": "Europe/Lisbon"
         }
       ]
     }
@@ -78,30 +78,91 @@
   "buffer_threshold": 0.8,
   "theme": "olympus",
   "company_holidays_by_region": {
-    "north-america": [
+    "NY": [
       {
-        "id": "holiday-na-1",
-        "region": "north-america",
-        "name": "Founders Day",
-        "date": "2026-07-03",
+        "id": "holiday-ny-1",
+        "region": "NY",
+        "name": "New Year's Day",
+        "date": "2026-01-01",
+        "recurring": true
+      },
+      {
+        "id": "holiday-ny-2",
+        "region": "NY",
+        "name": "Memorial Day",
+        "date": "2026-05-25",
+        "recurring": true
+      },
+      {
+        "id": "holiday-ny-3",
+        "region": "NY",
+        "name": "Independence Day",
+        "date": "2026-07-04",
+        "recurring": true
+      },
+      {
+        "id": "holiday-ny-4",
+        "region": "NY",
+        "name": "Labor Day",
+        "date": "2026-09-07",
+        "recurring": true
+      },
+      {
+        "id": "holiday-ny-5",
+        "region": "NY",
+        "name": "Thanksgiving",
+        "date": "2026-11-26",
+        "recurring": true
+      },
+      {
+        "id": "holiday-ny-6",
+        "region": "NY",
+        "name": "Christmas Day",
+        "date": "2026-12-25",
         "recurring": true
       }
     ],
-    "europe": [
+    "lisbon": [
       {
-        "id": "holiday-eu-1",
-        "region": "europe",
-        "name": "Summer Bank Holiday",
-        "date": "2026-08-31",
+        "id": "holiday-pt-1",
+        "region": "lisbon",
+        "name": "Ano Novo",
+        "date": "2026-01-01",
         "recurring": true
-      }
-    ],
-    "apac": [
+      },
       {
-        "id": "holiday-apac-1",
-        "region": "apac",
-        "name": "Founding Day",
-        "date": "2026-09-18",
+        "id": "holiday-pt-2",
+        "region": "lisbon",
+        "name": "Dia de Portugal",
+        "date": "2026-06-10",
+        "recurring": true
+      },
+      {
+        "id": "holiday-pt-3",
+        "region": "lisbon",
+        "name": "Santo António",
+        "date": "2026-06-13",
+        "recurring": true
+      },
+      {
+        "id": "holiday-pt-4",
+        "region": "lisbon",
+        "name": "Assunção de Nossa Senhora",
+        "date": "2026-08-15",
+        "recurring": true
+      },
+      {
+        "id": "holiday-pt-5",
+        "region": "lisbon",
+        "name": "Imaculada Conceição",
+        "date": "2026-12-08",
+        "recurring": true
+      },
+      {
+        "id": "holiday-pt-6",
+        "region": "lisbon",
+        "name": "Natal",
+        "date": "2026-12-25",
         "recurring": true
       }
     ]

@@ -41,7 +41,7 @@ export function SettingsModal({
   // Region & holiday local state managers
   const holidayMap = config?.company_holidays_by_region || {}
   const regions = Object.keys(holidayMap)
-  const [selectedRegion, setSelectedRegion] = useState(() => regions[0] || 'north-america')
+  const [selectedRegion, setSelectedRegion] = useState(() => regions[0] || 'NY')
   const [newRegionName, setNewRegionName] = useState('')
   const [newHolidayName, setNewHolidayName] = useState('')
   const [newHolidayDate, setNewHolidayDate] = useState('')
@@ -56,7 +56,7 @@ export function SettingsModal({
   const currentModels = currentProvider?.models || []
   const selectedModel = config?.athena_model || currentModels[0] || ''
 
-  const currentRegion = selectedRegion || regions[0] || 'north-america'
+  const currentRegion = selectedRegion || regions[0] || 'NY'
   const currentRegionHolidays = holidayMap[currentRegion] || []
 
   const updateConfig = (patch: Partial<ForgeConfig>) => {
@@ -774,7 +774,7 @@ export function SettingsModal({
                   </span>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '110px', overflowY: 'auto' }}>
-                    {(regions.length > 0 ? regions : ['north-america', 'europe', 'apac']).map((region) => {
+                    {(regions.length > 0 ? regions : ['NY', 'lisbon']).map((region) => {
                       const isActive = currentRegion === region
                       return (
                         <button

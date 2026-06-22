@@ -44,7 +44,7 @@ export function DeveloperModal({
   const submitLabel = mode === 'edit' ? 'SAVE CHANGES' : 'ADD PERSON'
 
   const regionOptions = useMemo(() => {
-    return regions && regions.length > 0 ? regions : ['north-america', 'europe', 'apac']
+    return regions && regions.length > 0 ? regions : ['NY', 'lisbon']
   }, [regions])
 
   useEffect(() => {
