@@ -331,8 +331,8 @@ export function SprintWorkbenchPanel({
                 <section style={sectionStyle}>
                   <div style={{ display: 'grid', gap: '8px' }}>
                     {history.slice(-8).reverse().map((snapshot) => (
-                      <div key={snapshot.id} style={{ display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr) 48px', gap: '8px', alignItems: 'center' }}>
-                        <span style={monoLabelStyle}>{new Date(snapshot.captured_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <div key={snapshot.id} style={{ display: 'grid', gridTemplateColumns: '78px minmax(0, 1fr) 48px', gap: '8px', alignItems: 'center' }}>
+                        <span style={monoLabelStyle}>{new Date(snapshot.captured_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                         <Bar value={Math.min(100, Math.round(snapshot.load_ratio * 100))} tone={snapshot.status === 'overloaded' ? 'danger' : snapshot.status === 'warning' ? 'warning' : 'good'} />
                         <span style={monoLabelStyle}>{Math.round(snapshot.load_ratio * 100)}%</span>
                       </div>
