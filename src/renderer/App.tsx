@@ -2187,22 +2187,7 @@ function App() {
                 />
               )}
 
-              {rightPanelTab === 'sprint-future' && (
-                <SprintWorkbenchPanel
-                  mode="future"
-                  activeSquad={activeSquad}
-                  history={squadStatsHistory}
-                  latest={latestSquadSnapshot}
-                  sprintPlans={sprintPlans}
-                  currentSprint={currentSprint}
-                  availabilityEvents={availabilityEvents}
-                  tickets={tickets}
-                  onCreateSprint={handleCreateSprint}
-                  onSetCurrentSprint={handleSetCurrentSprint}
-                  onCompleteSprint={handleCompleteSprint}
-                  onAddAvailabilityEvent={handleAddAvailabilityEvent}
-                />
-              )}
+
 
               {rightPanelTab === 'sprint-past' && (
                 <SprintWorkbenchPanel
@@ -2513,13 +2498,6 @@ function App() {
                   title="Current Sprint Details"
                 >
                   <Zap size={16} />
-                </button>
-                <button
-                  className={`nav-icon ${rightPanelOpen && rightPanelTab === 'sprint-future' ? 'active' : ''}`}
-                  onClick={() => handleRightRailClick('sprint-future')}
-                  title="Future Sprint Planning"
-                >
-                  <CalendarDays size={16} />
                 </button>
                 <button
                   className={`nav-icon ${rightPanelOpen && rightPanelTab === 'sprint-past' ? 'active' : ''}`}
