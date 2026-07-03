@@ -2,25 +2,34 @@
 
 :root {
   --font-size: 13px;
-  --background: #06090f; /* Savant Sanctum --bg */
-  --foreground: #f0f4f8; /* Savant Sanctum --text */
-  --muted-foreground: #a0aec0; /* Savant Sanctum --muted-foreground */
-  --cp-cyan: #00e5ff; /* Savant Sanctum --cyan */
-  --cp-magenta: #ff00aa; /* Savant Sanctum --magenta */
-  --cp-yellow: #ffe600; /* Savant Sanctum warning state */
-  --cp-green: #00ff88; /* Savant Sanctum --good */
+  --background: #06090f;
+  --foreground: #f0f4f8;
+  --card: #0b0f1a;
+  --card-foreground: #f0f4f8;
+  --secondary: #0f1929;
+  --muted: #111a2a;
+  --muted-foreground: #a0aec0;
+  --border: rgba(0, 229, 255, 0.15);
+  --radius: 0.125rem;
+  --cp-cyan: #00e5ff;
+  --cp-magenta: #ff00aa;
+  --cp-yellow: #ffe600;
+  --cp-green: #00ff88;
   --cp-purple: #7b2fff;
-  --cp-bg-0: #06090f; /* Savant Sanctum --bg */
-  --cp-bg-1: #0b0f1a; /* Savant Sanctum --panel */
-  --cp-bg-2: #0f1929; /* Savant Sanctum --panel-2 */
-  --cp-bg-3: #111a2a; /* Savant Sanctum --panel-3 */
-  --cp-border: rgba(0, 229, 255, 0.15); /* Savant Sanctum --border */
-  --cp-glow-cyan: 0 0 8px rgba(0, 229, 255, 0.25);
-  --cp-glow-magenta: 0 0 8px rgba(255, 0, 170, 0.25);
+  --cp-bg-0: #06090f;
+  --cp-bg-1: #0b0f1a;
+  --cp-bg-2: #0f1929;
+  --cp-bg-3: #111a2a;
+  --cp-bg-4: #111a2a;
+  --cp-border: rgba(0, 229, 255, 0.15);
+  --cp-glow-cyan: 0 0 8px rgba(0, 229, 255, 0.4);
+  --cp-glow-magenta: 0 0 8px rgba(255, 0, 170, 0.4);
   --cp-glow-red: 0 0 10px rgba(255, 34, 68, 0.4);
+  /* Section/panel label headers — bright white per Sanctum spec */
+  --section-label: var(--foreground);
 }
 
-/* Sanctum Low Contrast Blueprint Creator styling (low visual fatigue, avoiding neon glow overload) */
+/* Forge low-contrast blueprint styling, aligned to the Sanctum operator palette. */
 .ticket-drag-card {
   transition: all 0.2s ease;
   border-color: rgba(90, 122, 154, 0.25) !important;
@@ -147,7 +156,7 @@ button {
   place-items: center;
   background: linear-gradient(135deg, var(--cp-cyan), var(--cp-purple));
   box-shadow: var(--cp-glow-cyan);
-  color: #080b12;
+  color: var(--cp-bg-0);
 }
 
 .title-block h1 {
@@ -261,6 +270,91 @@ button {
   flex-direction: row;
   background: var(--cp-bg-1);
   border-right: 1px solid var(--cp-border);
+}
+
+.left-collapsible-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--cp-bg-1);
+  border-right: 1px solid var(--cp-border);
+  transition: width 180ms ease, min-width 180ms ease, max-width 180ms ease;
+}
+
+.left-collapsible-panel.is-open {
+  width: 280px;
+  min-width: 280px;
+  max-width: 280px;
+}
+
+.left-collapsible-panel.is-collapsed {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+}
+
+.left-collapsible-panel-top,
+.left-collapsible-top-toggle {
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--cp-border);
+  color: var(--cp-cyan);
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.left-collapsible-panel-top {
+  justify-content: space-between;
+  padding: 0 8px;
+}
+
+.left-collapsible-panel-top span {
+  font-size: 11px;
+  opacity: 0.58;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.left-collapsible-panel-top button,
+.left-collapsible-top-toggle {
+  border: 0;
+  background: transparent;
+  color: var(--cp-cyan);
+  opacity: 0.52;
+}
+
+.left-collapsible-panel-top button:hover,
+.left-collapsible-top-toggle:hover {
+  opacity: 1;
+  background: rgba(0, 229, 255, 0.05);
+}
+
+.left-collapsible-top-toggle {
+  width: 100%;
+  justify-content: center;
+}
+
+.left-collapsible-bar {
+  width: 100%;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-left: 1px solid rgba(0, 229, 255, 0.08);
+  background: var(--cp-bg-1);
+  color: var(--cp-cyan);
+  font: 700 10px 'Share Tech Mono', monospace;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  opacity: 0.78;
+}
+
+.left-collapsible-bar:hover {
+  opacity: 1;
+  background: rgba(0, 229, 255, 0.05);
 }
 
 .icon-rail {
@@ -490,7 +584,7 @@ button {
 }
 
 .message-bubble {
-  border: 1px solid rgba(0, 229, 255, 0.12);
+  border: 1px solid var(--cp-border);
   background: var(--cp-bg-2);
   color: var(--foreground);
   padding: 8px 12px;
@@ -711,7 +805,7 @@ button {
   height: 25px;
   border: 0;
   background: var(--cp-cyan);
-  color: #080b12;
+  color: var(--cp-bg-0);
   font: 700 12px 'Share Tech Mono', monospace;
 }
 
@@ -1166,12 +1260,12 @@ button {
   }
 }
 
-/* Modal Backdrop & Card classes from Savant Sanctum */
+/* Modal backdrop and card classes aligned to Sanctum shell surfaces. */
 .modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(3, 6, 12, 0.72);
+  background: rgba(6, 9, 15, 0.72);
   backdrop-filter: blur(4px);
   display: grid;
   place-items: center;
@@ -1180,11 +1274,33 @@ button {
 
 .modal-card {
   width: min(760px, 100%);
-  background: #0a0e18;
-  border: 1px solid rgba(0, 229, 255, 0.12);
+  background: var(--cp-bg-1);
+  border: 1px solid rgba(0, 229, 255, 0.2);
   padding: 18px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
   border-radius: 0;
+  /* Sanctum spec: foreground text is #f0f4f8 — enforce white/light for all card content */
+  color: var(--foreground);
+}
+
+/* Sanctum operator palette — all inputs/selects/textareas inside modal use white/light text */
+.modal-card input,
+.modal-card select,
+.modal-card textarea {
+  color: var(--foreground);
+  -webkit-text-fill-color: var(--foreground);
+}
+
+/* Placeholder text uses muted palette per Sanctum spec */
+.modal-card input::placeholder,
+.modal-card textarea::placeholder {
+  color: rgba(160, 174, 192, 0.45);
+  -webkit-text-fill-color: rgba(160, 174, 192, 0.45);
+}
+
+/* Date input color-scheme for OS-level picker integration */
+.modal-card input[type="date"] {
+  color-scheme: dark;
 }
 
 .modal-head {
@@ -1201,10 +1317,11 @@ button {
   gap: 12px;
 }
 
+/* Sanctum spec: labels use foreground text (#f0f4f8) for legibility */
 .modal-grid label {
   display: grid;
   gap: 8px;
-  color: var(--muted-foreground);
+  color: var(--foreground);
   font-size: 12px;
 }
 
@@ -1219,9 +1336,37 @@ button {
 }
 
 .modal-grid select {
-  background-color: #080b12;
+  background-color: var(--cp-bg-0);
 }
 
+
+
+
+/* =========================================================
+   PAGE HEADER - Sanctum-style compact header panel for each tab view
+   ========================================================= */
+
+.hero-panel {
+  padding: 0 0 8px;
+  background: linear-gradient(180deg, rgba(0, 229, 255, 0.03), transparent 62%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 10px;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Eyebrow — small muted label above the title */
 .eyebrow {
   font-size: 11px;
   text-transform: uppercase;
@@ -1229,18 +1374,171 @@ button {
   color: var(--muted-foreground);
 }
 
-.hero-copy {
-  margin-top: 8px;
-  color: var(--cp-green);
-  font-size: 12px;
+/* Main page title typog — Sanctum compact 13px root, Orbitron/Rajdhani hierarchy */
+h1.page-title,
+.page-title {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Orbitron', 'Rajdhani', sans-serif;
+  letter-spacing: 0.1em;
+  color: var(--section-label);
+  text-transform: uppercase;
+}
+
+.workspace-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
+}
+
+.workspace-header-meta {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-left: 8px;
+  align-items: center;
+}
+
+/* Status/priority pills */
+.workspace-header-pill {
+  padding: 3px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted-foreground);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  font-family: "Share Tech Mono", monospace;
+}
+
+.workspace-header-pill-critical {
+  border-color: rgba(255, 68, 68, 0.35);
+  background: rgba(255, 68, 68, 0.08);
+  color: #ff6b6b;
+}
+
+.workspace-header-pill-high {
+  border-color: rgba(250, 204, 21, 0.35);
+  background: rgba(250, 204, 21, 0.08);
+  color: #facc15;
+}
+
+.workspace-header-pill-medium {
+  border-color: rgba(0, 229, 255, 0.35);
+  background: rgba(0, 229, 255, 0.08);
+  color: var(--cp-cyan);
+}
+
+.workspace-header-pill-low {
+  border-color: rgba(74, 222, 128, 0.35);
+  background: rgba(74, 222, 128, 0.08);
+  color: #4ade80;
+}
+
+.workspace-header-pill-open,
+.workspace-header-pill-active,
+.workspace-header-pill-online,
+.workspace-header-pill-current {
+  border-color: rgba(74, 222, 128, 0.35);
+  background: rgba(74, 222, 128, 0.08);
+  color: #4ade80;
+}
+
+.workspace-header-pill-closed,
+.workspace-header-pill-complete,
+.workspace-header-pill-planned {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(148, 163, 184, 0.08);
+  color: #94a3b8;
+}
+
+.workspace-header-pill-syncing,
+.workspace-header-pill-warning {
+  border-color: rgba(250, 204, 21, 0.35);
+  background: rgba(250, 204, 21, 0.08);
+  color: #facc15;
+}
+
+/* Dense stat subtitle line. */
+.hero-copy {
+  margin-top: 6px;
+  color: var(--cp-green);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-family: 'Share Tech Mono', monospace;
   white-space: nowrap;
   overflow-x: auto;
   max-width: 100%;
   scrollbar-width: none;
 }
+
+.hero-copy::-webkit-scrollbar {
+  display: none;
+}
+
+/* Fact strip — pill tags below the hero header */
+.fact-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.fact-pill {
+  padding: 3px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.015);
+  color: var(--foreground);
+  font-size: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 0.06em;
+}
+
+/* =========================================================
+   TYPOGRAPHY - aligned to Sanctum scale and color
+   Sanctum root: 13px · top-app title: 14px · page headers: 13px
+   ========================================================= */
+
+h1, h2 {
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Orbitron', 'Rajdhani', sans-serif;
+  margin: 0;
+}
+
+h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-family: 'Orbitron', 'Rajdhani', sans-serif;
+  margin: 0;
+}
+
+/* =========================================================
+   CARD / BORDER CRISPNESS - matching Sanctum thin-border style
+   ========================================================= */
+
+.forge-card {
+  background: transparent;
+  border: 1px solid var(--cp-border);
+  border-radius: 0;
+}
+
+.forge-card:hover {
+  border-color: rgba(0, 229, 255, 0.28);
+}
+
+.forge-card.selected {
+  border-color: var(--cp-cyan);
+  background: rgba(0, 229, 255, 0.04);
+}
+
+/* =========================================================
+   COCKPIT GRID
+   ========================================================= */
 
 .cockpit-grid {
   display: grid;

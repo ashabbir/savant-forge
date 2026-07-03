@@ -226,13 +226,30 @@ describe('savantClient', () => {
       expect(profile?.name).toBe('ahmed@savant.com')
     })
 
-    it('clears session and returns null if validation request throws error', async () => {
+    it('clears session and returns null if validation request rejects with 401 or 403 status', async () => {
       setStoredApiKey('sk-saved')
-      vi.mocked(fetch).mockRejectedValueOnce(new Error('unauthorized'))
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: () => Promise.resolve({ error: 'unauthorized' })
+      } as Response)
 
       const profile = await loadProfile('http://s')
       expect(profile).toBeNull()
       expect(getStoredApiKey()).toBe('')
+    })
+
+    it('retains session and returns offline profile if validation request fails due to connection/server issues', async () => {
+      setStoredApiKey('sk-saved')
+      vi.mocked(fetch).mockRejectedValueOnce(new Error('connection timeout'))
+
+      const profile = await loadProfile('http://s')
+      expect(profile).not.toBeNull()
+      expect(profile?.userId).toBe('offline-operator')
+      expect(profile?.name).toBe('Operator (Offline)')
+      expect(getStoredApiKey()).toBe('sk-saved')
     })
   })
 

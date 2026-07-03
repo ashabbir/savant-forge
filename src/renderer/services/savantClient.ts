@@ -61,7 +61,9 @@ async function fetchJson(url: string, init: RequestInit = {}, skipAuth = false) 
   const data = contentType.includes('application/json') ? await response.json() : null
 
   if (!response.ok) {
-    throw new Error(data?.error || data?.message || `${response.status} ${response.statusText}`)
+    const error = new Error(data?.error || data?.message || `${response.status} ${response.statusText}`) as any
+    error.status = response.status
+    throw error
   }
 
   return data
@@ -126,14 +128,22 @@ export function logout() {
 }
 
 export async function loadProfile(serverUrl: string): Promise<SavantProfile | null> {
-  if (!getStoredApiKey()) return null
+  const apiKey = getStoredApiKey()
+  if (!apiKey) return null
 
   try {
     const data = await fetchJson(`${serverUrl}/api/auth/validate`)
     return normalizeProfile(data)
-  } catch {
-    logout()
-    return null
+  } catch (err: any) {
+    if (err.status === 401 || err.status === 403) {
+      logout()
+      return null
+    }
+    return {
+      userId: 'offline-operator',
+      name: 'Operator (Offline)',
+      role: 'user'
+    }
   }
 }
 

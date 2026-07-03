@@ -192,4 +192,38 @@ describe('SquadCockpit', () => {
 
     expect(screen.getByText('Drop tickets here')).toBeTruthy()
   })
+
+  it('renders linked PRDs belonging to the active squad', () => {
+    const mockPrds = [
+      { id: 'prd-1', title: 'Payment Integration PRD', content: 'Specs...', status: 'draft' as const, lastUpdated: new Date().toISOString(), squadId: 'squad-alpha' },
+      { id: 'prd-2', title: 'Auth Service PRD', content: 'Specs...', status: 'ready' as const, lastUpdated: new Date().toISOString(), squadId: 'squad-beta' }
+    ]
+    const onSelectPrd = vi.fn()
+
+    render(
+      <SquadCockpit 
+        activeSquad={mockSquad}
+        squadCapacityStats={mockStats}
+        devLoadStats={mockDevLoad}
+        selectedDeveloperId={null}
+        setSelectedDeveloperId={() => {}}
+        setSelectedTicketId={() => {}}
+        setSelectedPrdId={() => {}}
+        setRightPanelTab={() => {}}
+        setRightPanelOpen={() => {}}
+        assignTicketToDeveloper={() => {}}
+        prds={mockPrds}
+        onSelectPrd={onSelectPrd}
+      />
+    )
+
+    // Should display the PRD that belongs to squad-alpha
+    expect(screen.getByText('Payment Integration PRD')).toBeTruthy()
+    // Should NOT display the PRD that belongs to squad-beta
+    expect(screen.queryByText('Auth Service PRD')).toBeNull()
+
+    // Trigger select callback
+    fireEvent.click(screen.getByText('Payment Integration PRD'))
+    expect(onSelectPrd).toHaveBeenCalledWith('prd-1')
+  })
 })

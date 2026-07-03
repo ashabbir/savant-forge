@@ -6,8 +6,8 @@ describe('LoginScreen', () => {
   it('renders branding elements, placeholder, and inputs', () => {
     render(<LoginScreen onLogin={async () => {}} />)
 
-    expect(screen.getByText('SAVANT FORGE')).toBeTruthy()
-    expect(screen.getByText('Authenticate with your Savant API key')).toBeTruthy()
+    expect(screen.getByText('Operator Login')).toBeTruthy()
+    expect(screen.getByText('Savant Authentication Portal')).toBeTruthy()
     expect(screen.getByPlaceholderText('sk-...')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Validate Key' })).toBeTruthy()
   })

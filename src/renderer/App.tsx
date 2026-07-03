@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent, useRef, useMemo, type CSSProperties } from 'react'
+import { useState, useEffect, FormEvent, useRef, useMemo, useCallback, type CSSProperties } from 'react'
 import {
   Users,
   Layers,
@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Trash2,
+  Edit,
   RefreshCw,
   Sparkles,
   Send,
@@ -26,6 +27,8 @@ import {
   Settings,
   ShieldAlert,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Shield,
   KeyRound,
   LogIn,
@@ -37,6 +40,7 @@ import {
   RefreshCcw,
   CalendarDays,
   Zap,
+  Tag,
   History
 } from 'lucide-react'
 
@@ -63,9 +67,13 @@ import {
   getLocalPRDs,
   saveLocalPRD,
   deleteLocalPRD,
+  deleteTicketLocal,
   pushToConfluence,
+  loadPRDsFromServer,
+  syncPRDsToServer,
   type ForgeConfig,
   type ProjectEntity,
+  type FeatureRequest,
   type Squad,
   type Developer,
   type JiraTicket,
@@ -80,18 +88,24 @@ import {
   setCurrentSprintPlan,
   getAvailabilityEvents,
   saveAvailabilityEvent,
+  deleteAvailabilityEvent,
   getProjectEntities,
   saveProjectEntity,
   setCurrentProjectEntity,
-  getCurrentProjectEntity
+  getCurrentProjectEntity,
+  getFeatureRequests,
+  saveFeatureRequest,
+  deleteFeatureRequest
 } from './services/localState'
 
 import {
   buildAthenaPromptSections,
-  fetchAthenaMcpTools
+  fetchAthenaMcpTools,
+  resolveAthenaPersona
 } from './services/athenaContext'
 import {
   appendAthenaThreadMessage,
+  deleteAthenaThreadMessage,
   loadAthenaRuns,
   saveAthenaRuns,
   loadAthenaThreads,
@@ -115,6 +129,8 @@ import { SprintWorkbenchPanel } from './components/SprintWorkbenchPanel'
 import { DeveloperModal, type DeveloperDraft } from './components/DeveloperModal'
 import { SpecialtyTagPills, describeSpecialties, normalizeSpecialtyTags } from './components/DeveloperSpecialties'
 import { LeftRail } from './components/LeftRail'
+import { AddTicketModal } from './components/AddTicketModal'
+import { ProductManagerPanel } from './components/ProductManagerPanel'
 
 const fallbackRuntime = {
   appName: 'Savant Forge',
@@ -128,6 +144,12 @@ const fallbackRuntime = {
 const FORGE_WORKSPACE_ID = '17807589009121862532574'
 const FALLBACK_ATHENA_USER_NAME = 'ahmed'
 const DEFAULT_WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+const LEFT_COLLAPSIBLE_LABELS: Record<'squad' | 'projects' | 'blueprint' | 'settings', string> = {
+  squad: 'SQUAD',
+  projects: 'PROJECTS',
+  blueprint: 'BLUEPRINTS',
+  settings: 'SETTINGS'
+}
 
 function getAthenaUserName(profile: SavantProfile | null) {
   return profile?.name?.trim() || FALLBACK_ATHENA_USER_NAME
@@ -164,9 +186,10 @@ function buildAthenaContextProfile(params: {
   selectedDeveloper: Developer | undefined
   selectedTicket: JiraTicket | undefined
   selectedPrd: PRDDocument | undefined
+  selectedProject: ProjectEntity | undefined
   config: ForgeConfig | null
 }) {
-  const { activeTab, activeSquad, selectedDeveloper, selectedTicket, selectedPrd, config } = params
+  const { activeTab, activeSquad, selectedDeveloper, selectedTicket, selectedPrd, selectedProject, config } = params
   if (selectedDeveloper) {
     const squad = activeSquad?.name || 'Unassigned squad'
     return {
@@ -205,6 +228,21 @@ function buildAthenaContextProfile(params: {
         ['CONTEXT MODE', 'PRD definition'],
         ['TARGET ENTITY', `prd_id=${selectedPrd.id}\ntitle=${selectedPrd.title}`],
         ['PRD CONTENT', selectedPrd.content]
+      ] as [string, string][]
+    }
+  }
+
+  if (selectedProject) {
+    return {
+      kind: 'project' as const,
+      key: `project:${selectedProject.id}`,
+      title: `Project: ${selectedProject.name}`,
+      summary: 'Project planning context for Athena across project goals, features, PRDs, and delivery state.',
+      promptSections: [
+        ['CONTEXT MODE', 'Project planning'],
+        ['TARGET ENTITY', `project_id=${selectedProject.id}\nname=${selectedProject.name}`],
+        ['PROJECT GOALS', selectedProject.goals || ''],
+        ['PROJECT FUNCTIONALITIES', selectedProject.functionalities || '']
       ] as [string, string][]
     }
   }
@@ -256,6 +294,14 @@ function buildAthenaContextProfile(params: {
     promptSections: [['CONTEXT MODE', activeTab === 'projects' ? 'PRD / PM-Architect' : 'Blueprint / PMO']] as [string, string][]
   }
 }
+
+type AthenaContextOverride = {
+  kind: AthenaContextKind
+  key: string
+  title: string
+  summary: string
+  promptSections: [string, string][]
+} | null
 
 function getAthenaThreadTitle(kind: AthenaContextKind, title: string, fallback: string) {
   if (kind === 'developer' || kind === 'squad' || kind === 'ticket' || kind === 'prd') return title
@@ -373,14 +419,23 @@ function App() {
   const [squadStatsHistory, setSquadStatsHistory] = useState<SquadSnapshot[]>(() => getSquadStatsHistory())
   const [sprintPlans, setSprintPlans] = useState<SprintPlan[]>(() => getSprintPlans())
   const [availabilityEvents, setAvailabilityEvents] = useState<AvailabilityEvent[]>(() => getAvailabilityEvents())
-  const [activeTab, setActiveTab] = useState<'squad' | 'projects' | 'blueprint' | 'settings'>('blueprint')
+  const [activeTab, setActiveTab] = useState<'squad' | 'projects' | 'blueprint' | 'settings'>('squad')
   const [productSubTab, setProductSubTab] = useState<'athena' | 'blueprints'>('blueprints')
   const [isLeftPaneOpen, setIsLeftPaneOpen] = useState(true)
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
-  const [rightPanelTab, setRightPanelTab] = useState('ticket-inspector')
+  const [rightPanelTab, setRightPanelTab] = useState('squad-stats')
   const [isDeveloperModalOpen, setIsDeveloperModalOpen] = useState(false)
   const [developerModalMode, setDeveloperModalMode] = useState<'add' | 'edit'>('add')
   const [developerDraft, setDeveloperDraft] = useState<DeveloperDraft>(createBlankDeveloperDraft())
+  const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false)
+  const [selectedTicketToEdit, setSelectedTicketToEdit] = useState<JiraTicket | null>(null)
+
+  // Local state for adding vacation to developer in inspector
+  const [devVacationType, setDevVacationType] = useState<'vacation' | 'sick' | 'pto'>('vacation')
+  const [devVacationTitle, setDevVacationTitle] = useState('Vacation')
+  const [devVacationStart, setDevVacationStart] = useState(() => new Date().toISOString().slice(0, 10))
+  const [devVacationEnd, setDevVacationEnd] = useState(() => new Date().toISOString().slice(0, 10))
+  const [devVacationNotes, setDevVacationNotes] = useState('')
 
   function handleSelectTab(tab: 'squad' | 'projects' | 'blueprint') {
     setSelectedTicketId(null)
@@ -390,13 +445,9 @@ function App() {
       setIsLeftPaneOpen(!isLeftPaneOpen)
     } else {
       setActiveTab(tab)
-      setIsLeftPaneOpen(true)
-      if (tab === 'blueprint') {
-        setRightPanelTab('ticket-inspector')
-      } else if (tab === 'projects') {
-        setRightPanelTab('prd-inspector')
-      } else if (tab === 'squad') {
-        setRightPanelTab('dev-inspector')
+      setIsLeftPaneOpen(false)
+      if (tab !== 'projects') {
+        setAthenaContextOverride(null)
       }
     }
   }
@@ -423,9 +474,19 @@ function App() {
   // PRD States
   const [prds, setPrds] = useState<PRDDocument[]>([])
   const [selectedPrdId, setSelectedPrdId] = useState<string | null>(null)
-  const [isCreatingPrd, setIsCreatingPrd] = useState(false)
-  const [newPrdTitle, setNewPrdTitle] = useState('')
-  const [newPrdContent, setNewPrdContent] = useState('')
+  const [selectedPmProject, setSelectedPmProject] = useState<ProjectEntity | null>(null)
+  const [isProjectDrawerOpen, setIsProjectDrawerOpen] = useState(false)
+  const [isCreatePrdModalOpen, setIsCreatePrdModalOpen] = useState(false)
+  const [projectActionSignal, setProjectActionSignal] = useState<{ type: 'edit' | 'delete' | 'athena' | 'create-feature'; projectId: string; nonce: number } | null>(null)
+  const [athenaContextOverride, setAthenaContextOverride] = useState<AthenaContextOverride>(null)
+  // Debounce timer ref for server sync on PRD changes
+  const prdSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Feature Requests State
+  const [features, setFeatures] = useState<FeatureRequest[]>(() => getFeatureRequests())
+
+  // Project Entities State
+  const [projectEntities, setProjectEntities] = useState<ProjectEntity[]>(() => getProjectEntities())
 
   const currentSprint = useMemo(() => {
     if (!config?.current_sprint_id) return sprintPlans.find((plan) => plan.status === 'current') || null
@@ -446,13 +507,33 @@ function App() {
   const [newTicketSp, setNewTicketSp] = useState('5')
   const [newTicketPriority, setNewTicketPriority] = useState('medium')
 
+  function getFeaturePrdIds(feature: FeatureRequest) {
+    const ids = Array.isArray(feature.prd_ids) ? feature.prd_ids.filter(Boolean) : []
+    if (ids.length > 0) return ids
+    return feature.prd_id ? [feature.prd_id] : []
+  }
+
   // Find active squad
   const activeSquad = config?.squads.find(s => s.id === selectedSquadId) || config?.squads[0]
   const latestSquadSnapshot = squadStatsHistory[squadStatsHistory.length - 1] || null
 
+  // Filter tickets to only show those belonging to the active squad's PRDs or no PRD at all
+  const squadScopedTickets = useMemo(() => {
+    if (!selectedSquadId) return tickets
+    return tickets.filter(t => {
+      if (t.prd_id) {
+        const prd = prds.find(p => p.id === t.prd_id)
+        if (!prd || prd.squadId !== selectedSquadId) {
+          return false
+        }
+      }
+      return true
+    })
+  }, [tickets, prds, selectedSquadId])
+
   // Calculate Developer allocations & buffer math
   const devLoadStats = activeSquad?.developers.map(dev => {
-    const assignedTickets = tickets.filter(t => {
+    const assignedTickets = squadScopedTickets.filter(t => {
       if (t.assignee !== dev.id) return false
       if (config?.current_sprint_id) {
         return t.sprint_id === config.current_sprint_id
@@ -496,7 +577,7 @@ function App() {
     if (!activeSquad) return { totalRaw: 0, totalEffective: 0, assigned: 0, isOverload: false }
     const totalRaw = activeSquad.developers.reduce((acc, d) => acc + d.raw_capacity, 0)
     const totalEffective = latestSquadSnapshot?.available_capacity || totalRaw * 0.8
-    const assigned = tickets.filter(t => {
+    const assigned = squadScopedTickets.filter(t => {
       const isAssignedToSquad = activeSquad.developers.some(d => d.id === t.assignee)
       if (!isAssignedToSquad) return false
       if (config?.current_sprint_id) {
@@ -513,30 +594,86 @@ function App() {
   })()
 
   // Filtered tickets list for blueprint center panel
-  const filteredTickets = tickets.filter(t => {
+  const filteredTickets = squadScopedTickets.filter(t => {
     const matchesSearch = t.ticket_key.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.title.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesSearch
   })
+
+  // Filter PRD registry by active squad
+  const displayedPrds = useMemo(() => {
+    if (!selectedSquadId) return prds
+    return prds.filter(p => p.squadId === selectedSquadId)
+  }, [prds, selectedSquadId])
   const squadScopedUnassignedTickets = filteredTickets.filter((ticket) => {
     if (ticket.assignee) return false
     if (!config?.current_project_id) return true
     return ticket.project_id === config.current_project_id || !ticket.project_id
   })
+  const groupedBlueprintTickets = useMemo(() => {
+    const projectBuckets = new Map<string, {
+      projectId: string
+      projectName: string
+      prdBuckets: Map<string, { prdId: string; prdName: string; tickets: JiraTicket[] }>
+    }>()
+
+    squadScopedUnassignedTickets.forEach((ticket) => {
+      const project = ticket.project_id
+        ? projectEntities.find((item) => item.id === ticket.project_id) || null
+        : null
+      const projectId = project?.id || 'unassigned-project'
+      const projectName = project?.name || 'No Project'
+      const prd = ticket.prd_id
+        ? prds.find((item) => item.id === ticket.prd_id) || null
+        : null
+      const prdId = prd?.id || 'unassigned-prd'
+      const prdName = prd?.title || 'No PRD'
+
+      if (!projectBuckets.has(projectId)) {
+        projectBuckets.set(projectId, {
+          projectId,
+          projectName,
+          prdBuckets: new Map()
+        })
+      }
+
+      const projectBucket = projectBuckets.get(projectId)!
+      if (!projectBucket.prdBuckets.has(prdId)) {
+        projectBucket.prdBuckets.set(prdId, {
+          prdId,
+          prdName,
+          tickets: []
+        })
+      }
+
+      projectBucket.prdBuckets.get(prdId)!.tickets.push(ticket)
+    })
+
+    return Array.from(projectBuckets.values())
+      .sort((a, b) => a.projectName.localeCompare(b.projectName))
+      .map((projectBucket) => ({
+        ...projectBucket,
+        prdBuckets: Array.from(projectBucket.prdBuckets.values())
+          .sort((a, b) => a.prdName.localeCompare(b.prdName))
+      }))
+  }, [prds, projectEntities, squadScopedUnassignedTickets])
 
   const selectedTicket = tickets.find(t => t.ticket_id === selectedTicketId)
   const selectedDeveloper = activeSquad?.developers.find(d => d.id === selectedDeveloperId)
   const selectedDevStats = devLoadStats.find(s => s.dev.id === selectedDeveloperId)
   const selectedPrd = prds.find(p => p.id === selectedPrdId)
   const selectedDeveloperSpecialties = selectedDeveloper ? getDeveloperSpecialties(selectedDeveloper) : []
-  const athenaContextProfile = useMemo(() => buildAthenaContextProfile({
+  const selectedProject = activeTab === 'projects' ? selectedPmProject || projectEntities[0] : undefined
+  const baseAthenaContextProfile = useMemo(() => buildAthenaContextProfile({
     activeTab,
     activeSquad,
     selectedDeveloper: selectedDeveloper || undefined,
     selectedTicket: selectedTicket || undefined,
     selectedPrd: selectedPrd || undefined,
+    selectedProject,
     config
-  }), [activeTab, activeSquad, selectedDeveloper, selectedTicket, selectedPrd, config])
+  }), [activeTab, activeSquad, selectedDeveloper, selectedTicket, selectedPrd, selectedProject, config])
+  const athenaContextProfile = athenaContextOverride || baseAthenaContextProfile
 
   const currentAthenaThread = useMemo(() => {
     return athenaThreads.find((thread) => thread.contextKey === athenaContextProfile.key) || null
@@ -584,11 +721,17 @@ function App() {
     if (typeof process !== 'undefined' && (process.env.NODE_ENV === 'test' || (import.meta as any).env?.MODE === 'test')) {
       setProfile({ userId: 'ahmed', name: 'ahmed', role: 'admin' })
       await loadDomainData()
+      setSelectedDeveloperId(null)
+      setSelectedTicketId(null)
+      setSelectedPrdId(null)
       return
     }
     const nextProfile = await loadProfile(serverUrl)
     setProfile(nextProfile)
     await loadDomainData()
+    setSelectedDeveloperId(null)
+    setSelectedTicketId(null)
+    setSelectedPrdId(null)
   }
 
   async function loadDomainData() {
@@ -601,9 +744,12 @@ function App() {
     const activeWorkspaceId = '17807589009121862532574'
     const fetchedTickets = await fetchJiraTickets(serverUrl, activeWorkspaceId)
     setTickets(fetchedTickets)
-    setPrds(getLocalPRDs())
+    const fetchedPrds = await loadPRDsFromServer(serverUrl)
+    setPrds(fetchedPrds)
     setSprintPlans(getSprintPlans())
     setAvailabilityEvents(getAvailabilityEvents())
+    setFeatures(getFeatureRequests())
+    setProjectEntities(getProjectEntities())
     const snapshot = recordSprintSnapshot(cfg.squads.find((squad) => squad.id === cfg.active_squad_id), fetchedTickets)
     if (snapshot) {
       setSquadStatsHistory(getSquadStatsHistory())
@@ -614,6 +760,9 @@ function App() {
     const nextProfile = await login(serverUrl, key)
     setProfile(nextProfile)
     await loadDomainData()
+    setSelectedDeveloperId(null)
+    setSelectedTicketId(null)
+    setSelectedPrdId(null)
   }
 
   function handleLogout() {
@@ -687,6 +836,19 @@ function App() {
     } catch (e) {
       console.error(e)
     }
+  }
+
+  async function handleDeleteTicket(ticketId: string) {
+    const ticket = tickets.find((item) => item.ticket_id === ticketId)
+    if (!ticket || ticket.assignee) return
+    if (!confirm(`Delete ${ticket.ticket_key}? This cannot be undone.`)) return
+
+    setTickets((prev) => prev.filter((item) => item.ticket_id !== ticketId))
+    if (selectedTicketId === ticketId) {
+      setSelectedTicketId(null)
+      setRightPanelTab('ticket-inspector')
+    }
+    await deleteTicketLocal(serverUrl, ticketId)
   }
 
   async function triggerManualSync() {
@@ -825,6 +987,15 @@ function App() {
     }
   }
 
+  function handleDeleteAvailabilityEvent(id: string) {
+    deleteAvailabilityEvent(id)
+    setAvailabilityEvents(getAvailabilityEvents())
+    const snapshot = recordSprintSnapshot(activeSquad, tickets)
+    if (snapshot) {
+      setSquadStatsHistory(getSquadStatsHistory())
+    }
+  }
+
   // Athena Chat Form Submit & Agent Engine Call
   async function handleSendAthenaMessage(e?: FormEvent) {
     if (e) e.preventDefault()
@@ -863,17 +1034,75 @@ function App() {
       const provider = config?.athena_provider || 'codex'
       const model = config?.athena_model || 'gpt-5-codex'
 
+      let contextSections = [...athenaContextProfile.promptSections]
+      const targetPrdId = threadId.startsWith('athena-thread-prd:') 
+        ? threadId.replace('athena-thread-prd:', '') 
+        : athenaContextProfile.key.startsWith('prd:') 
+        ? athenaContextProfile.key.replace('prd:', '') 
+        : null
+
+      if (targetPrdId) {
+        const threadPrd = prds.find(p => p.id === targetPrdId)
+        if (threadPrd) {
+          contextSections = contextSections.filter(([title]) => title !== 'TARGET ENTITY' && title !== 'PRD CONTENT')
+          contextSections.push(['TARGET ENTITY', `prd_id=${threadPrd.id}\ntitle=${threadPrd.title}`])
+          contextSections.push(['PRD CONTENT', threadPrd.content])
+        }
+      } else {
+        const isHelpPrd = promptText.toLowerCase().includes('help me understand this prd') ||
+                          promptText.toLowerCase().includes('understand this prd') ||
+                          promptText.toLowerCase().includes('help me understand the prd')
+        if (isHelpPrd) {
+          const activePrd = selectedPrd || (prds.length > 0 ? prds[0] : null)
+          if (activePrd) {
+            contextSections = contextSections.filter(([title]) => title !== 'TARGET ENTITY' && title !== 'PRD CONTENT')
+            contextSections.push(['TARGET ENTITY', `prd_id=${activePrd.id}\ntitle=${activePrd.title}`])
+            contextSections.push(['PRD CONTENT', activePrd.content])
+          }
+        }
+      }
+
+      let activePersonaText = athenaPersona.systemPromptText
+      let mcpPersonaId = ''
+      let mcpTags: string[] = []
+
+      if (athenaContextProfile.kind === 'prd') {
+        mcpPersonaId = 'persona.product'
+        mcpTags = ['product']
+      } else if (athenaContextProfile.kind === 'ticket' || athenaContextProfile.kind === 'squad' || athenaContextProfile.kind === 'developer' || athenaContextProfile.kind === 'blueprint') {
+        mcpPersonaId = 'persona.engineer'
+        mcpTags = ['engineering']
+      }
+
+      if (mcpPersonaId) {
+        const resolved = await resolveAthenaPersona(serverUrl, mcpPersonaId, mcpTags)
+        if (resolved) {
+          activePersonaText = resolved
+        }
+      }
+
       const systemPrompt = buildAthenaPromptSections([
-        ['ACTIVE PERSONA', athenaPersona.systemPromptText],
+        ['ACTIVE PERSONA', activePersonaText],
         ['AVAILABLE MCP TOOLS', mcpTools.map((t: any) => `- ${t.name}: ${t.description}`).join('\n')],
         ['ATHENA RUNTIME', `provider=${provider}\nmodel=${model}`],
-        ...athenaContextProfile.promptSections
+        ...contextSections
       ])
 
       const currentUserName = getAthenaUserName(profile)
+      const historyItems: string[] = []
+      chatMessages.forEach((msg) => {
+        if (msg.sender === 'user') {
+          historyItems.push(`OPERATOR: ${msg.text}`)
+        } else {
+          historyItems.push(`ATHENA: ${msg.text}`)
+        }
+      })
+      const chatHistoryText = historyItems.join('\n')
+
       const composedPrompt = [
         systemPrompt,
         '',
+        ...(chatHistoryText ? ['[CHAT HISTORY]', chatHistoryText, ''] : []),
         `[USER] ${currentUserName}`,
         `[REQUEST] ${promptText}`
       ].join('\n')
@@ -1095,32 +1324,87 @@ function App() {
   }
 
   function handleDeleteAthenaMessage(messageId: string) {
+    const threadId = activeAthenaThreadId || (athenaContextProfile ? `athena-thread-${athenaContextProfile.key}` : null)
+    if (threadId) {
+      deleteAthenaThreadMessage(threadId, messageId)
+    }
     setChatMessages((prev) => prev.filter((message) => message.id !== messageId))
   }
 
-  // Handle PRD Creation manually
-  function handleSaveManualPrd(e: FormEvent) {
-    e.preventDefault()
-    if (!newPrdTitle) return
+  // Debounced server sync helper for PRDs - saves immediately to localStorage, syncs to server after delay
+  const debouncedSyncPRDs = useCallback((nextPrds: PRDDocument[]) => {
+    if (prdSyncTimerRef.current) {
+      clearTimeout(prdSyncTimerRef.current)
+    }
+    prdSyncTimerRef.current = setTimeout(() => {
+      syncPRDsToServer(serverUrl, nextPrds).catch(console.error)
+      prdSyncTimerRef.current = null
+    }, 1500)
+  }, [serverUrl])
+
+  // Handle PRD Creation immediately
+  function handleCreateNewPrd() {
     const newPrd: PRDDocument = {
       id: `prd-${Math.random().toString(36).slice(2, 10)}`,
-      title: newPrdTitle,
-      content: newPrdContent || `# ${newPrdTitle}\n\nPRD content template...`,
+      title: 'New PRD',
+      content: '# New PRD\n\nEdit your PRD requirements here...',
       status: 'draft',
+      squadId: selectedSquadId || undefined,
       lastUpdated: new Date().toISOString()
+    }
+    // Save to localStorage immediately for persistence
+    const updated = saveLocalPRD(newPrd)
+    setPrds(updated)
+    // Immediately sync to server on creation (not debounced) to ensure PRD is persisted
+    syncPRDsToServer(serverUrl, updated).catch(console.error)
+    setSelectedPrdId(newPrd.id)
+    setRightPanelTab('prd-inspector')
+    setRightPanelOpen(true)
+  }
+
+  function handleCreatePrdFromModal(draft: { title: string; content: string }) {
+    const newPrd: PRDDocument = {
+      id: `prd-${Math.random().toString(36).slice(2, 10)}`,
+      title: draft.title.trim() || 'New PRD',
+      content: draft.content.trim() || '# New PRD\n\nEdit your PRD requirements here...',
+      status: 'draft',
+      squadId: selectedSquadId || undefined,
+      project_id: selectedPmProject?.id,
+      lastUpdated: new Date().toISOString(),
+      epic_ids: []
     }
     const updated = saveLocalPRD(newPrd)
     setPrds(updated)
-    setNewPrdTitle('')
-    setNewPrdContent('')
-    setIsCreatingPrd(false)
+    syncPRDsToServer(serverUrl, updated).catch(console.error)
     setSelectedPrdId(newPrd.id)
+    setRightPanelTab('prd-inspector')
+    setRightPanelOpen(true)
+    setIsCreatePrdModalOpen(false)
+  }
+
+  // Handle PRD Updates - saves to localStorage immediately, debounces server sync
+  function handleUpdatePrd(prdId: string, fields: Partial<PRDDocument>, shouldSync = true) {
+    const prd = prds.find(p => p.id === prdId)
+    if (!prd) return
+    const updatedPrd = {
+      ...prd,
+      ...fields,
+      lastUpdated: new Date().toISOString()
+    }
+    // Always save to localStorage immediately for persistence
+    const nextPrds = saveLocalPRD(updatedPrd)
+    setPrds(nextPrds)
+    if (shouldSync) {
+      // Debounced server sync to avoid network spam on every keystroke
+      debouncedSyncPRDs(nextPrds)
+    }
   }
 
   function handleDeletePrd(prdId: string) {
     if (confirm("Are you sure you want to delete this PRD?")) {
       const updated = deleteLocalPRD(prdId)
       setPrds(updated)
+      syncPRDsToServer(serverUrl, updated).catch(console.error)
       if (selectedPrdId === prdId) {
         setSelectedPrdId(null)
       }
@@ -1130,9 +1414,192 @@ function App() {
   async function handlePushToConfluence(prdId: string) {
     try {
       const updated = await pushToConfluence(prdId)
-      setPrds(prev => prev.map(p => p.id === prdId ? updated : p))
+      setPrds(prev => {
+        const next = prev.map(p => p.id === prdId ? updated : p)
+        syncPRDsToServer(serverUrl, next).catch(console.error)
+        return next
+      })
     } catch (e) {
       console.error(e)
+    }
+  }
+
+  async function handleCreateTicketFromPRD(draft: { ticket_key: string; title: string; story_points: number; priority: string }) {
+    if (!selectedPrdId) return
+    const activeWorkspaceId = '17807589009121862532574'
+    const spText = `[SP-${draft.story_points}]`
+    const finalTitle = draft.title.toLowerCase().includes('sp-') 
+      ? draft.title 
+      : `${spText} ${draft.title}`
+
+    try {
+      const created = await createTicketLocal(serverUrl, {
+        workspace_id: activeWorkspaceId,
+        ticket_key: draft.ticket_key,
+        title: finalTitle,
+        status: 'todo',
+        priority: draft.priority,
+        reporter: profile?.name || 'ahmed',
+        prd_id: selectedPrdId
+      })
+
+      setTickets(prev => [...prev, created])
+      const nextTickets = [...tickets, created]
+      const snapshot = recordSprintSnapshot(activeSquad, nextTickets)
+      if (snapshot) {
+        setSquadStatsHistory(getSquadStatsHistory())
+      }
+      setSelectedTicketId(created.ticket_id)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  async function handleUpdateTicketFromModal(ticketId: string, draft: { ticket_key: string; title: string; story_points: number; priority: string }) {
+    const ticket = tickets.find(t => t.ticket_id === ticketId)
+    if (!ticket) return
+    const spText = `[SP-${draft.story_points}]`
+    const finalTitle = draft.title.toLowerCase().includes('sp-') 
+      ? draft.title 
+      : `${spText} ${draft.title}`
+
+    const updated = {
+      ...ticket,
+      ticket_key: draft.ticket_key,
+      title: finalTitle,
+      story_points: draft.story_points,
+      priority: draft.priority
+    }
+
+    setTickets(prev => prev.map(t => t.ticket_id === ticketId ? updated : t))
+    await updateTicketLocal(serverUrl, updated)
+    const snapshot = recordSprintSnapshot(activeSquad, tickets.map(t => t.ticket_id === ticketId ? updated : t))
+    if (snapshot) {
+      setSquadStatsHistory(getSquadStatsHistory())
+    }
+  }
+
+  async function handleUpdateTicket(ticketId: string, fields: Partial<JiraTicket>) {
+    const ticket = tickets.find(t => t.ticket_id === ticketId)
+    if (!ticket) return
+    const updated = { ...ticket, ...fields }
+    setTickets(prev => prev.map(t => t.ticket_id === ticketId ? updated : t))
+    await updateTicketLocal(serverUrl, updated)
+    const snapshot = recordSprintSnapshot(activeSquad, tickets.map(t => t.ticket_id === ticketId ? updated : t))
+    if (snapshot) {
+      setSquadStatsHistory(getSquadStatsHistory())
+    }
+  }
+
+  // ─── PM Flow: Feature and Project Handlers ────────────────────────────────
+
+  function handleSaveProjectEntity(project: ProjectEntity) {
+    saveProjectEntity(project)
+    setProjectEntities(getProjectEntities())
+  }
+
+  function handleSaveFeature(feature: FeatureRequest) {
+    saveFeatureRequest(feature)
+    setFeatures(getFeatureRequests())
+  }
+
+  function handleDeleteFeature(featureId: string) {
+    if (confirm('Delete this feature request?')) {
+      deleteFeatureRequest(featureId)
+      setFeatures(getFeatureRequests())
+    }
+  }
+
+  function handleSavePrdFromPM(prd: PRDDocument) {
+    const nextPrds = saveLocalPRD(prd)
+    setPrds(nextPrds)
+    debouncedSyncPRDs(nextPrds)
+  }
+
+  function handleDeletePrdFromPM(prdId: string) {
+    if (confirm('Delete this PRD?')) {
+      const updated = deleteLocalPRD(prdId)
+      setPrds(updated)
+      syncPRDsToServer(serverUrl, updated).catch(console.error)
+      if (selectedPrdId === prdId) setSelectedPrdId(null)
+    }
+  }
+
+  function handleConvertFeatureToPRD(feature: FeatureRequest): PRDDocument {
+    const newPrd: PRDDocument = {
+      id: `prd-${Math.random().toString(36).slice(2, 10)}`,
+      title: `PRD: ${feature.title}`,
+      content: `# ${feature.title}\n\n## Overview\n\n${feature.description || 'Feature description goes here.'}\n\n## Goals\n\n- \n\n## User Stories\n\n### Epic 1: \n- Story 1.1: As a user, I want…\n\n## Acceptance Criteria\n\n- [ ] \n\n## Out of Scope\n\n- \n\n## Technical Considerations\n\n`,
+      status: 'draft',
+      squadId: selectedSquadId,
+      project_id: feature.project_id,
+      feature_id: feature.id,
+      lastUpdated: new Date().toISOString(),
+      epic_ids: []
+    }
+    const nextPrds = saveLocalPRD(newPrd)
+    setPrds(nextPrds)
+    syncPRDsToServer(serverUrl, nextPrds).catch(console.error)
+
+    // Mark feature as having another linked PRD while preserving earlier PRDs.
+    const nextFeaturePrdIds = [...getFeaturePrdIds(feature), newPrd.id]
+    const updatedFeature: FeatureRequest = {
+      ...feature,
+      prd_ids: nextFeaturePrdIds,
+      prd_id: nextFeaturePrdIds[0],
+      updated_at: new Date().toISOString()
+    }
+    saveFeatureRequest(updatedFeature)
+    setFeatures(getFeatureRequests())
+
+    return newPrd
+  }
+
+  function handleOpenAthenaFromPM(contextKey: string, contextKind: string, contextData: Record<string, unknown>) {
+    // Build the Athena context sections from PM data
+    const contextTitle = contextKind === 'prd'
+      ? `PRD: ${(contextData.prd as any)?.title || 'PRD'}`
+      : contextKind === 'feature'
+      ? `Feature: ${(contextData.feature as any)?.title || 'Feature'}`
+      : contextKind === 'project'
+      ? `Project: ${(contextData.project as any)?.name || 'Project'}`
+      : 'Athena'
+    const sections: [string, string][] = [
+      ['CONTEXT MODE', contextKind === 'prd' ? 'PRD / PM-Architect' : 'Product Planning'],
+    ]
+
+    if (contextData.project) {
+      const proj = contextData.project as any
+      sections.push(['PROJECT CONTEXT', `name=${proj.name}\ndescription=${proj.description}\ngoals=${proj.goals || ''}\nfeatures=${proj.features_summary ? JSON.stringify(proj.features_summary) : ''}`])
+    }
+
+    if (contextData.feature) {
+      const feat = contextData.feature as any
+      sections.push(['FEATURE CONTEXT', `title=${feat.title}\ndescription=${feat.description}\nstatus=${feat.status}`])
+    }
+
+    if (contextData.prd) {
+      const prdData = contextData.prd as any
+      sections.push(['PRD CONTEXT', `title=${prdData.title}\nstatus=${prdData.status}`])
+      sections.push(['PRD CONTENT', prdData.content || ''])
+    }
+
+    setAthenaContextOverride({
+      kind: contextKind as AthenaContextKind,
+      key: contextKey,
+      title: contextTitle,
+      summary: sections.map(([section, body]) => `${section}\n${body}`).join('\n\n'),
+      promptSections: sections
+    })
+
+    // Open the Athena chat panel with this context
+    setRightPanelTab('athena-chat')
+    setRightPanelOpen(true)
+
+    // Force switch to the right context kind for Athena
+    if (contextKind === 'prd') {
+      const matchedPrd = prds.find(p => contextKey === `prd:${p.id}`)
+      if (matchedPrd) setSelectedPrdId(matchedPrd.id)
     }
   }
 
@@ -1151,10 +1618,14 @@ function App() {
 
   useEffect(() => {
     const userName = getAthenaUserName(profile)
+    const isPrdThread = athenaContextProfile.kind === 'prd' && !athenaContextProfile.key.endsWith(':global')
+    const prdId = isPrdThread ? athenaContextProfile.key.replace('prd:', '') : null
+    const prd = prdId ? prds.find(p => p.id === prdId) : null
+
     const greeting: AthenaThreadMessage = {
       id: 'init',
-      sender: 'assistant',
-      text: buildAthenaGreeting(userName),
+      sender: prd ? 'user' : 'assistant',
+      text: prd ? prd.content : buildAthenaGreeting(userName),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
 
@@ -1180,7 +1651,7 @@ function App() {
     }
     setActiveAthenaThreadId(existing.id)
     setChatMessages(normalizedMessages)
-  }, [profile, athenaContextProfile.key, athenaContextProfile.kind, athenaContextProfile.title, athenaThreads])
+  }, [profile, athenaContextProfile.key, athenaContextProfile.kind, athenaContextProfile.title, athenaThreads, prds])
 
   useEffect(() => {
     function refreshAthenaThreads() {
@@ -1207,6 +1678,32 @@ function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  // Bug Fix: When right panel closes while a PRD is selected, flush any pending debounced server sync immediately
+  useEffect(() => {
+    if (!rightPanelOpen && selectedPrdId) {
+      if (prdSyncTimerRef.current) {
+        clearTimeout(prdSyncTimerRef.current)
+        prdSyncTimerRef.current = null
+      }
+      // Flush sync immediately when closing panel
+      const currentPrds = getLocalPRDs()
+      syncPRDsToServer(serverUrl, currentPrds).catch(console.error)
+    }
+  }, [rightPanelOpen, selectedPrdId, serverUrl])
+
+  // Bug Fix: When a PRD is opened, immediately save it to localStorage and trigger a server sync
+  // This ensures the PRD is persisted even if user closes without making any changes
+  useEffect(() => {
+    if (selectedPrdId) {
+      const prd = getLocalPRDs().find(p => p.id === selectedPrdId)
+      if (prd) {
+        // Trigger a server sync immediately when opening a PRD to ensure it's persisted
+        syncPRDsToServer(serverUrl, getLocalPRDs()).catch(console.error)
+      }
+    }
+  }, [selectedPrdId, serverUrl])
+
 
   // Declarations moved to top of App component body to resolve hoisting
 
@@ -1384,111 +1881,80 @@ function App() {
           </div>
         </aside>
 
-        {/* Collapsible Left Side Pane / Drawer */}
-        {isLeftPaneOpen && (
-          <aside className="left-sidebar" style={{ width: '280px', display: 'flex', flexDirection: 'column', background: 'var(--cp-bg-1)', borderRight: '1px solid var(--cp-border)' }}>
-            {activeTab === 'projects' && (
-              <>
-                <div className="session-panel-header" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>Local PRD Registry</span>
-                  <button 
-                    onClick={() => setIsCreatingPrd(!isCreatingPrd)}
-                    style={{
-                      background: 'rgba(0, 229, 255, 0.1)',
-                      border: '1px solid var(--cp-cyan)',
-                      color: 'var(--cp-cyan)',
-                      fontSize: '9px',
-                      fontFamily: "'Share Tech Mono', monospace",
-                      padding: '1px 4px'
-                    }}
+        {/* Left Collapsible Panel */}
+        {activeTab !== 'projects' && (
+        <aside className={`left-sidebar left-collapsible-panel ${isLeftPaneOpen ? 'is-open' : 'is-collapsed'}`}>
+          {!isLeftPaneOpen ? (
+            <>
+              <button
+                type="button"
+                className="left-collapsible-top-toggle"
+                onClick={() => setIsLeftPaneOpen(true)}
+                title={`Expand ${LEFT_COLLAPSIBLE_LABELS[activeTab].toLowerCase()} panel`}
+                aria-label={`Expand ${LEFT_COLLAPSIBLE_LABELS[activeTab].toLowerCase()} panel`}
+              >
+                <ChevronRight size={14} />
+              </button>
+              <button
+                type="button"
+                className="left-collapsible-bar"
+                onClick={() => setIsLeftPaneOpen(true)}
+                title={`Expand ${LEFT_COLLAPSIBLE_LABELS[activeTab].toLowerCase()} panel`}
+                aria-label={`Expand ${LEFT_COLLAPSIBLE_LABELS[activeTab].toLowerCase()} panel`}
+              >
+                {LEFT_COLLAPSIBLE_LABELS[activeTab]}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="left-collapsible-panel-top">
+                <span>{LEFT_COLLAPSIBLE_LABELS[activeTab]}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {(activeTab === 'squad' || activeTab === 'blueprint') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeTab === 'squad') {
+                          const name = prompt('Enter new squad name:')
+                          if (name && name.trim()) {
+                            handleCreateSquad(name.trim())
+                          }
+                        } else {
+                          setSelectedTicketToEdit(null)
+                          setIsAddTicketModalOpen(true)
+                        }
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--cp-cyan)',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontFamily: "'Share Tech Mono', monospace",
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        padding: '0 4px'
+                      }}
+                    >
+                      <Plus size={11} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsLeftPaneOpen(false)}
+                    title={`Collapse ${LEFT_COLLAPSIBLE_LABELS[activeTab].toLowerCase()} panel`}
+                    aria-label={`Collapse ${LEFT_COLLAPSIBLE_LABELS[activeTab].toLowerCase()} panel`}
                   >
-                    {isCreatingPrd ? 'CANCEL' : '+ PRD'}
+                    <ChevronLeft size={14} />
                   </button>
                 </div>
-                
-                <div style={{ flex: 1, padding: '10px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {isCreatingPrd ? (
-                    <form onSubmit={handleSaveManualPrd} style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'var(--cp-bg-2)', padding: '8px', border: '1px solid var(--cp-border)' }}>
-                      <input 
-                        type="text" 
-                        placeholder="PRD Title..."
-                        value={newPrdTitle}
-                        onChange={e => setNewPrdTitle(e.target.value)}
-                        required
-                        style={{ background: 'var(--cp-bg-3)', border: '1px solid var(--cp-border)', color: 'var(--foreground)', fontSize: '11px', padding: '4px', outline: 'none' }}
-                      />
-                      <textarea 
-                        placeholder="PRD Requirements content..."
-                        value={newPrdContent}
-                        onChange={e => setNewPrdContent(e.target.value)}
-                        rows={6}
-                        style={{ background: 'var(--cp-bg-3)', border: '1px solid var(--cp-border)', color: 'var(--foreground)', fontSize: '11px', padding: '4px', resize: 'none', outline: 'none' }}
-                      />
-                      <button type="submit" style={{ background: 'var(--cp-cyan)', color: 'var(--cp-bg-0)', border: '0', fontSize: '11px', padding: '6px', fontWeight: 'bold' }}>
-                        SAVE PRD
-                      </button>
-                    </form>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      {prds.map(p => (
-                        <div 
-                          key={p.id}
-                          onClick={() => {
-                            setSelectedPrdId(p.id)
-                            setSelectedTicketId(null)
-                            setSelectedDeveloperId(null)
-                            setRightPanelTab('prd-inspector')
-                            setRightPanelOpen(true)
-                          }}
-                          style={{
-                            background: selectedPrdId === p.id ? 'rgba(0, 229, 255, 0.08)' : 'var(--cp-bg-2)',
-                            border: selectedPrdId === p.id ? '1px solid var(--cp-cyan)' : '1px solid var(--cp-border)',
-                            padding: '8px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <span style={{ color: p.status === 'synced' ? 'var(--cp-green)' : 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '130px' }}>
-                            {p.title}
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '9px', opacity: 0.6, fontFamily: "'Share Tech Mono', monospace" }}>{p.status.toUpperCase()}</span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDeletePrd(p.id)
-                              }}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: 'var(--cp-magenta)',
-                                opacity: 0.7,
-                                cursor: 'pointer',
-                                padding: '2px',
-                                display: 'grid',
-                                placeItems: 'center'
-                              }}
-                              title="Delete PRD"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+              </div>
+            {/* projects tab content is owned by ProductManagerPanel */}
+
 
             {activeTab === 'blueprint' && (
               <>
-                <div className="session-panel-header" style={{ width: '100%' }}>
-                  <span>Blueprints ({filteredTickets.length})</span>
-                </div>
                 <div style={{ padding: '8px', borderBottom: '1px solid var(--cp-border)' }}>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <Search size={11} style={{ position: 'absolute', left: '8px', color: 'var(--cp-cyan)', opacity: 0.5 }} />
@@ -1514,7 +1980,7 @@ function App() {
                   {filteredTickets.map(t => {
                     const isSelected = selectedTicketId === t.ticket_id
                     return (
-                      <div 
+                      <div
                         key={t.ticket_id}
                         onClick={() => {
                           setSelectedTicketId(t.ticket_id)
@@ -1526,17 +1992,44 @@ function App() {
                         style={{
                           background: isSelected ? 'rgba(0, 229, 255, 0.08)' : 'var(--cp-bg-2)',
                           border: isSelected ? '1px solid var(--cp-cyan)' : '1px solid var(--cp-border)',
-                          padding: '6px 8px',
+                          borderRadius: '4px',
+                          padding: '8px',
+                          marginBottom: '6px',
                           fontSize: '12px',
                           cursor: 'pointer',
                           display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
+                          flexDirection: 'column',
+                          gap: '6px',
+                          alignItems: 'center',
+                          boxShadow: isSelected ? '0 0 0 1px rgba(0, 229, 255, 0.08) inset' : 'none'
                         }}
                       >
-                        <span style={{ color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", fontWeight: 'bold' }}>{t.ticket_key}</span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '130px', textAlign: 'left', marginLeft: '6px' }}>{t.title.replace(/\[SP-\d+\]\s*/i, '')}</span>
-                        <span style={{ color: 'var(--cp-green)', fontWeight: 'bold', fontFamily: "'Share Tech Mono', monospace" }}>{t.story_points}</span>
+                        <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", fontWeight: 'bold' }}>{t.ticket_key}</span>
+                          <span
+                            style={{
+                              fontFamily: "'Share Tech Mono', monospace",
+                              fontSize: '9px',
+                              padding: '1px 4px',
+                              background: 'rgba(255, 0, 170, 0.1)',
+                              color: 'var(--cp-magenta)',
+                              border: '1px solid rgba(255, 0, 170, 0.2)'
+                            }}
+                          >
+                            {t.priority.toUpperCase()}
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', fontSize: '12px', color: isSelected ? 'var(--foreground)' : 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {t.title.replace(/\[SP-\d+\]\s*/i, '')}
+                        </div>
+                        <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                          <span style={{ fontSize: '9px', fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)', opacity: 0.8 }}>
+                            {t.sprint_id ? sprintPlans.find(p => p.id === t.sprint_id)?.name || 'Linked' : 'Backlog'}
+                          </span>
+                          <span style={{ color: 'var(--cp-green)', fontSize: '11px', fontWeight: 'bold', fontFamily: "'Share Tech Mono', monospace" }}>
+                            {t.story_points} SP
+                          </span>
+                        </div>
                       </div>
                     )
                   })}
@@ -1546,32 +2039,6 @@ function App() {
 
             {activeTab === 'squad' && (
               <>
-                <div className="session-panel-header" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>Squads ({config?.squads?.length || 0})</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const name = prompt('Enter new squad name:')
-                      if (name && name.trim()) {
-                        handleCreateSquad(name.trim())
-                      }
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--cp-cyan)',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                      fontFamily: "'Share Tech Mono', monospace",
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '2px',
-                      padding: '0 4px'
-                    }}
-                  >
-                    <Plus size={11} /> ADD
-                  </button>
-                </div>
                 <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '8px', borderBottom: '1px solid var(--cp-border)' }}>
                   <div style={{ display: 'grid', gap: '6px' }}>
                     {(config?.squads || []).map((squad) => {
@@ -1644,62 +2111,81 @@ function App() {
                 </div>
                 
                 <div className="session-tree" style={{ flex: 1, padding: '8px', overflowY: 'auto' }}>
-                  {squadScopedUnassignedTickets.length === 0 ? (
+                  {groupedBlueprintTickets.length === 0 ? (
                     <div style={{ color: 'var(--muted-foreground)', opacity: 0.4, padding: '20px 10px', fontSize: '11px', fontStyle: 'italic', textAlign: 'center' }}>
                       All blueprints matched!
                     </div>
                   ) : (
-                    squadScopedUnassignedTickets.map(ticket => (
-                      <div 
-                        key={ticket.ticket_id}
-                        draggable
-                        onDragStart={(e) => e.dataTransfer.setData('text/plain', ticket.ticket_id)}
-                        onClick={() => {
-                          setSelectedTicketId(ticket.ticket_id)
-                          setSelectedDeveloperId(null)
-                          setSelectedPrdId(null)
-                          setRightPanelTab('ticket-inspector')
-                          setRightPanelOpen(true)
-                        }}
-                        className={`ticket-drag-card ${selectedTicketId === ticket.ticket_id ? 'active' : ''}`}
-                        style={{
-                          background: 'var(--cp-bg-2)',
-                          border: selectedTicketId === ticket.ticket_id ? '1px solid var(--cp-cyan)' : '1px solid var(--cp-border)',
-                          padding: '8px',
-                          marginBottom: '6px',
-                          cursor: 'grab',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '4px'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--cp-cyan)', fontSize: '11px', fontWeight: 'bold' }}>
-                            {ticket.ticket_key}
-                          </span>
-                          <span 
-                            style={{ 
-                              fontFamily: "'Share Tech Mono', monospace", 
-                              fontSize: '9px',
-                              padding: '1px 4px',
-                              background: 'rgba(255, 0, 170, 0.1)',
-                              color: 'var(--cp-magenta)',
-                              border: '1px solid rgba(255, 0, 170, 0.2)'
-                            }}
-                          >
-                            {ticket.priority.toUpperCase()}
-                          </span>
+                    groupedBlueprintTickets.map((projectBucket) => (
+                      <div key={projectBucket.projectId} style={{ display: 'grid', gap: '8px', marginBottom: '12px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.08em', padding: '4px 0', borderBottom: '1px solid var(--cp-border)' }}>
+                          {projectBucket.projectName}
+                          {projectBucket.projectId === 'unassigned-project' ? ' (no project)' : ''}
                         </div>
-                        <div style={{ fontSize: '12px', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {ticket.title}
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
-                          <span style={{ fontSize: '9px', fontFamily: "'Share Tech Mono', monospace", color: 'var(--cp-cyan)', opacity: 0.8 }}>
-                            {ticket.sprint_id ? sprintPlans.find(p => p.id === ticket.sprint_id)?.name || 'Linked' : 'Backlog'}
-                          </span>
-                          <span style={{ color: 'var(--cp-green)', fontSize: '11px', fontWeight: 'bold', fontFamily: "'Share Tech Mono', monospace" }}>
-                            {ticket.story_points} SP
-                          </span>
+                        <div style={{ display: 'grid', gap: '10px', paddingLeft: '8px' }}>
+                          {projectBucket.prdBuckets.map((prdBucket) => (
+                            <div key={prdBucket.prdId} style={{ display: 'grid', gap: '6px' }}>
+                              <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                {prdBucket.prdName}
+                                {prdBucket.prdId === 'unassigned-prd' ? ' (no prd)' : ''}
+                              </div>
+                              <div style={{ display: 'grid', gap: '6px' }}>
+                                {prdBucket.tickets.map((ticket) => (
+                                  <div
+                                    key={ticket.ticket_id}
+                                    draggable
+                                    onDragStart={(e) => e.dataTransfer.setData('text/plain', ticket.ticket_id)}
+                                    onClick={() => {
+                                      setSelectedTicketId(ticket.ticket_id)
+                                      setSelectedDeveloperId(null)
+                                      setSelectedPrdId(null)
+                                      setRightPanelTab('ticket-inspector')
+                                      setRightPanelOpen(true)
+                                    }}
+                                    className={`ticket-drag-card ${selectedTicketId === ticket.ticket_id ? 'active' : ''}`}
+                                    style={{
+                                      background: 'var(--cp-bg-2)',
+                                      border: selectedTicketId === ticket.ticket_id ? '1px solid var(--cp-cyan)' : '1px solid var(--cp-border)',
+                                      padding: '8px',
+                                      cursor: 'grab',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '4px'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <span style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)', fontSize: '11px', fontWeight: 'bold' }}>
+                                        {ticket.ticket_key}
+                                      </span>
+                                      <span
+                                        style={{
+                                          fontFamily: "'Share Tech Mono', monospace",
+                                          fontSize: '9px',
+                                          padding: '1px 4px',
+                                          background: 'rgba(255, 0, 170, 0.1)',
+                                          color: 'var(--cp-magenta)',
+                                          border: '1px solid rgba(255, 0, 170, 0.2)'
+                                        }}
+                                      >
+                                        {ticket.priority.toUpperCase()}
+                                      </span>
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {ticket.title}
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                                      <span style={{ fontSize: '9px', fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)', opacity: 0.8 }}>
+                                        {ticket.sprint_id ? sprintPlans.find(p => p.id === ticket.sprint_id)?.name || 'Linked' : 'Backlog'}
+                                      </span>
+                                      <span style={{ color: 'var(--cp-green)', fontSize: '11px', fontWeight: 'bold', fontFamily: "'Share Tech Mono', monospace" }}>
+                                        {ticket.story_points} SP
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))
@@ -1708,38 +2194,66 @@ function App() {
                 </div>
               </>
             )}
-          </aside>
+            </>
+          )}
+        </aside>
         )}
 
         {/* Center Panel Workspace: The Drag Targets and Capability Grid */}
-        <main className="chat-area" style={{ flex: 1, padding: '16px', background: 'var(--cp-bg-0)', display: 'flex', flexDirection: 'column' }}>
+        <main
+          className="chat-area"
+          style={{
+            flex: 1,
+            padding: activeTab === 'projects' ? '0' : '16px',
+            background: 'var(--cp-bg-0)',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
           
           {activeTab === 'projects' && (
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-              <div className="session-panel-header" style={{ width: '100%', marginBottom: '8px' }}>
-                <span>PROJECT FEATURES & PRDS</span>
+              <div style={{ flex: 1, overflow: 'hidden', padding: '0' }}>
+                <ProductManagerPanel
+                  projects={projectEntities}
+                  features={features}
+                  prds={prds}
+                  tickets={tickets}
+                  squads={config?.squads || []}
+                  activeSquadId={selectedSquadId}
+                  onSaveProject={handleSaveProjectEntity}
+                  onSaveFeature={handleSaveFeature}
+                  onDeleteFeature={handleDeleteFeature}
+                  onSavePRD={handleSavePrdFromPM}
+                  onDeletePRD={handleDeletePrdFromPM}
+                  onConvertFeatureToPRD={handleConvertFeatureToPRD}
+                  onOpenAthena={handleOpenAthenaFromPM}
+                  onNewProject={() => {
+                    setProjectActionSignal(null)
+                    setSelectedPmProject(null)
+                    setIsProjectDrawerOpen(false)
+                  }}
+                  onSelectionChange={(_, project) => setSelectedPmProject(project || null)}
+                  onProjectDrawerChange={setIsProjectDrawerOpen}
+                  onRequestEditProject={(project) => setProjectActionSignal({ type: 'edit', projectId: project.id, nonce: Date.now() })}
+                  onRequestDeleteProject={(project) => {
+                    if (!confirm(`Delete ${project.name}?`)) return
+                    setProjectActionSignal({ type: 'delete', projectId: project.id, nonce: Date.now() })
+                  }}
+                  projectActionSignal={projectActionSignal}
+                  selectedPrdId={selectedPrdId}
+                  onSelectPrd={(prdId) => {
+                    setSelectedPrdId(prdId)
+                    if (prdId) {
+                      setRightPanelTab('prd-inspector')
+                      setRightPanelOpen(true)
+                    }
+                  }}
+                />
               </div>
-              {selectedPrd ? (
-                <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, overflowY: 'auto' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--cp-cyan)', fontFamily: "'Orbitron', sans-serif" }}>
-                      {selectedPrd.title}
-                    </h2>
-                    <span style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>
-                      Last updated: {new Date(selectedPrd.lastUpdated).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <pre style={{ margin: 0, fontSize: '12px', color: 'var(--foreground)', background: 'var(--cp-bg-3)', padding: '12px', whiteSpace: 'pre-wrap', flex: 1, overflowY: 'auto', border: '1px solid var(--cp-border)' }}>
-                    {selectedPrd.content}
-                  </pre>
-                </div>
-              ) : (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', color: 'var(--muted-foreground)', fontSize: '13px', fontStyle: 'italic' }}>
-                  Select a project PRD from the registry sidebar or click '+ PRD' to start feature discovery.
-                </div>
-              )}
             </div>
           )}
+
 
           {activeTab === 'squad' && (
               <SquadCockpit
@@ -1764,73 +2278,114 @@ function App() {
                 onDeleteSprint={handleDeleteSprint}
                 onUpdateSquadName={handleUpdateSquadName}
                 onCreateSquad={handleCreateSquad}
+                prds={prds}
+                onSelectPrd={(prdId) => {
+                  setSelectedPrdId(prdId)
+                  setSelectedTicketId(null)
+                  setSelectedDeveloperId(null)
+                  setRightPanelTab('prd-inspector')
+                  setRightPanelOpen(true)
+                }}
               />
             )}
 
           {activeTab === 'blueprint' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, overflowY: 'auto' }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--cp-cyan)', fontFamily: "'Orbitron', sans-serif" }}>
-                JIRA BLUEPRINTS INGEST ENGINE
-              </h2>
-              <div style={{ fontSize: '12px', color: 'var(--muted-foreground)', marginBottom: '8px' }}>
-                Direct corporate ticket pool synced offline. Intercept mutations via local storage and queue for background gateway transmits.
-              </div>
+              <section className="hero-panel">
+                <div className="panel-head">
+                  <div>
+                    <div className="eyebrow">Blueprints</div>
+                    <div className="workspace-header-title-row">
+                      <h1 className="page-title" style={{ color: 'var(--section-label)' }}>
+                        Task Blue print
+                      </h1>
+                      <div className="workspace-header-meta">
+                        <span className="workspace-header-pill workspace-header-pill-active">synced</span>
+                        <span className="workspace-header-pill workspace-header-pill-medium">offline ingest</span>
+                      </div>
+                    </div>
+                    <p className="hero-copy">
+                      {filteredTickets.length} tickets · {filteredTickets.filter(t => t.status === 'done' || t.status === 'closed').length} done · {filteredTickets.filter(t => t.status === 'in_progress' || t.status === 'in-progress').length} in progress · {filteredTickets.filter(t => !t.assignee).length} unassigned
+                    </p>
+                  </div>
+                </div>
+                <div className="fact-strip">
+                  <span className="fact-pill">{filteredTickets.length} total tickets</span>
+                  <span className="fact-pill">{filteredTickets.filter(t => !t.assignee).length} unassigned</span>
+                  <span className="fact-pill">{filteredTickets.filter(t => t.status === 'in_progress' || t.status === 'in-progress').length} in progress</span>
+                  <span className="fact-pill">{filteredTickets.filter(t => t.status === 'done' || t.status === 'closed').length} done</span>
+                  <span className="fact-pill">{filteredTickets.reduce((acc, t) => acc + (t.story_points || 0), 0)} SP total</span>
+                </div>
+              </section>
 
-              <div style={{ border: '1px solid var(--cp-border)', background: 'var(--cp-bg-2)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--cp-bg-3)', borderBottom: '1px solid var(--cp-border)', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
-                      <th style={{ padding: '8px' }}>KEY</th>
-                      <th style={{ padding: '8px' }}>TITLE</th>
-                      <th style={{ padding: '8px' }}>STORY POINTS</th>
-                      <th style={{ padding: '8px' }}>ASSIGNEE</th>
-                      <th style={{ padding: '8px' }}>PRIORITY</th>
-                      <th style={{ padding: '8px' }}>SPRINT</th>
-                      <th style={{ padding: '8px' }}>STATUS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+              <div style={{ border: '1px solid var(--cp-border)', background: 'var(--cp-bg-2)', padding: '10px' }}>
+                {filteredTickets.length ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
                     {filteredTickets.map(t => {
                       const assigneeDev = activeSquad?.developers.find(d => d.id === t.assignee)
+                      const isSelected = selectedTicketId === t.ticket_id
+                      const statusColor = t.status === 'done'
+                        ? 'var(--cp-green)'
+                        : t.status === 'in_progress' || t.status === 'in-progress'
+                          ? 'var(--cp-yellow)'
+                          : 'var(--foreground)'
                       return (
-                        <tr 
-                          key={t.ticket_id} 
+                        <button
+                          key={t.ticket_id}
+                          type="button"
                           onClick={() => {
                             setSelectedTicketId(t.ticket_id)
                             setSelectedPrdId(null)
                             setRightPanelTab('ticket-inspector')
                             setRightPanelOpen(true)
                           }}
-                          style={{ 
-                            borderBottom: '1px solid var(--cp-border)', 
+                          style={{
+                            textAlign: 'left',
+                            border: `1px solid ${isSelected ? 'var(--cp-cyan)' : 'var(--cp-border)'}`,
+                            background: isSelected ? 'rgba(0, 229, 255, 0.08)' : 'var(--cp-bg-3)',
+                            padding: '12px',
                             cursor: 'pointer',
-                            background: selectedTicketId === t.ticket_id ? 'rgba(0, 229, 255, 0.05)' : 'transparent'
+                            display: 'grid',
+                            gap: '10px',
+                            minHeight: '160px',
+                            boxShadow: isSelected ? '0 0 0 1px rgba(0, 229, 255, 0.25) inset' : 'none'
                           }}
                         >
-                          <td style={{ padding: '8px', color: 'var(--cp-cyan)', fontWeight: 'bold', fontFamily: "'Share Tech Mono', monospace" }}>{t.ticket_key}</td>
-                          <td style={{ padding: '8px' }}>{t.title}</td>
-                          <td style={{ padding: '8px', fontWeight: 'bold' }}>{t.story_points} SP</td>
-                          <td style={{ padding: '8px', color: assigneeDev ? 'var(--foreground)' : 'var(--muted-foreground)' }}>
-                            {assigneeDev ? assigneeDev.name : 'Unassigned'}
-                          </td>
-                          <td style={{ padding: '8px' }}>
-                            <span style={{ fontSize: '10px', padding: '2px 4px', background: 'rgba(255,0,170,0.1)', color: 'var(--cp-magenta)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                            <div style={{ display: 'grid', gap: '4px' }}>
+                              <div style={{ color: 'var(--section-label)', fontWeight: 700, fontFamily: "'Share Tech Mono', monospace", fontSize: '11px' }}>
+                                {t.ticket_key}
+                              </div>
+                              <div style={{ color: 'var(--foreground)', fontSize: '13px', fontWeight: 600, lineHeight: 1.35 }}>
+                                {t.title}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '10px', padding: '2px 6px', background: 'rgba(255,0,170,0.1)', color: 'var(--cp-magenta)', whiteSpace: 'nowrap' }}>
                               {t.priority.toUpperCase()}
                             </span>
-                          </td>
-                          <td style={{ padding: '8px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
-                            {t.sprint_id ? sprintPlans.find(p => p.id === t.sprint_id)?.name || 'Linked' : 'Backlog'}
-                          </td>
-                          <td style={{ padding: '8px' }}>
-                            <span style={{ color: t.status === 'done' ? 'var(--cp-green)' : t.status === 'in_progress' ? 'var(--cp-yellow)' : 'var(--foreground)' }}>
+                          </div>
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            <span className="fact-pill">{t.story_points} SP</span>
+                            <span className="fact-pill">{assigneeDev ? assigneeDev.name : 'Unassigned'}</span>
+                            <span className="fact-pill">{t.sprint_id ? sprintPlans.find(p => p.id === t.sprint_id)?.name || 'Linked' : 'Backlog'}</span>
+                            <span className="fact-pill" style={{ color: statusColor }}>
                               {t.status.toUpperCase()}
                             </span>
-                          </td>
-                        </tr>
+                          </div>
+
+                          <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', lineHeight: 1.45 }}>
+                            Click to inspect and open the ticket details panel.
+                          </div>
+                        </button>
                       )
                     })}
-                  </tbody>
-                </table>
+                  </div>
+                ) : (
+                  <div style={{ padding: '16px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace", fontSize: '11px' }}>
+                    No tickets match the current filters.
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1842,7 +2397,7 @@ function App() {
             className="right-panel right-drawer" 
           >
             <div className="right-label" style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>// {rightPanelTab.replace('-', ' ')}</span>
+              <span>{rightPanelTab.replace('-', ' ')}</span>
               <button 
                 onClick={() => setRightPanelOpen(false)}
                 style={{ background: 'transparent', border: 0, padding: 0, color: 'var(--cp-cyan)', display: 'flex', alignItems: 'center' }}
@@ -1854,10 +2409,149 @@ function App() {
             
             <div className="telemetry-content" style={{ flex: 1, padding: '12px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
               {/* Telemetry/Inspector Panels */}
+              {rightPanelTab === 'project-features' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
+                    PROJECT FEATURES
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedPmProject) return
+                      setProjectActionSignal({ type: 'create-feature', projectId: selectedPmProject.id, nonce: Date.now() })
+                    }}
+                    disabled={!selectedPmProject}
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      display: 'grid',
+                      placeItems: 'center',
+                      background: 'rgba(0, 229, 255, 0.08)',
+                      border: '1px solid rgba(0, 229, 255, 0.35)',
+                      color: 'var(--cp-cyan)',
+                      padding: 0,
+                      cursor: selectedPmProject ? 'pointer' : 'not-allowed'
+                    }}
+                    title="Add feature"
+                    aria-label="Add feature"
+                  >
+                    <Plus size={14} />
+                  </button>
+                  <div style={{ display: 'grid', gap: '6px' }}>
+                    {selectedPmProject ? features.filter((feature) => feature.project_id === selectedPmProject.id).map((feature) => (
+                      <button
+                        key={feature.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('projects')
+                          setIsLeftPaneOpen(false)
+                          setSelectedPmProject(selectedPmProject)
+                        }}
+                        style={{
+                          background: 'var(--cp-bg-2)',
+                          border: '1px solid var(--cp-border)',
+                          color: 'var(--foreground)',
+                          padding: '10px 12px',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          display: 'grid',
+                          gap: '4px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700 }}>{feature.title}</span>
+                          <span style={{ fontSize: '9px', fontFamily: "'Share Tech Mono', monospace", color: feature.status === 'final' ? '#00ff88' : '#ffe600' }}>
+                            {feature.status.toUpperCase()}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>
+                          {feature.description.slice(0, 120) || 'No description yet.'}
+                        </div>
+                      </button>
+                    )) : (
+                      <div style={{ color: 'var(--muted-foreground)', fontSize: '12px' }}>Select a project.</div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {rightPanelTab === 'project-prds' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <div style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
+                      PROJECT PRDS
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatePrdModalOpen(true)}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(0, 229, 255, 0.1)',
+                        border: '1px solid var(--cp-cyan)',
+                        color: 'var(--cp-cyan)',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                      title="Add PRD"
+                      aria-label="Add PRD"
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                  <div style={{ display: 'grid', gap: '6px' }}>
+                    {selectedPmProject ? prds.filter((prd) => prd.project_id === selectedPmProject.id).map((prd) => (
+                      <button
+                        key={prd.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPrdId(prd.id)
+                          setRightPanelTab('prd-inspector')
+                        }}
+                        style={{
+                          background: 'var(--cp-bg-2)',
+                          border: '1px solid var(--cp-border)',
+                          color: 'var(--foreground)',
+                          padding: '10px 12px',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          display: 'grid',
+                          gap: '4px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700 }}>{prd.title}</span>
+                          <span style={{ fontSize: '9px', fontFamily: "'Share Tech Mono', monospace", color: '#00e5ff' }}>
+                            {prd.status.toUpperCase()}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>
+                          {prd.content.slice(0, 120) || 'No content yet.'}
+                        </div>
+                      </button>
+                    )) : (
+                      <div style={{ color: 'var(--muted-foreground)', fontSize: '12px' }}>Select a project.</div>
+                    )}
+                  </div>
+                </div>
+              )}
               {rightPanelTab === 'athena-chat' && (
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', height: '100%' }}>
-                  <div style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '8px' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '8px' }}>
                     ATHENA PM COPILOT CONVERSATION
+                  </div>
+                  <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '8px 10px', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '9px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '4px' }}>
+                      ACTIVE CONTEXT
+                    </div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--foreground)', marginBottom: '4px' }}>
+                      {athenaContextProfile.title}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', whiteSpace: 'pre-wrap', lineHeight: '1.45' }}>
+                      {athenaContextProfile.summary}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
                     <StatusBadge label={`PERSONA: ${athenaPersona.name}`} />
@@ -1898,53 +2592,51 @@ function App() {
                           >
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                               <div style={{ minWidth: 0, flex: 1 }}>{msg.text}</div>
-                              {msg.sender === 'assistant' && msg.id !== 'init' && (
-                                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCopyAthenaMessage(msg.text)}
-                                    title="Copy response"
-                                    aria-label="Copy response"
-                                    style={{
-                                      background: 'transparent',
-                                      border: '1px solid var(--cp-border)',
-                                      color: 'var(--cp-cyan)',
-                                      padding: '2px 4px',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    <Copy size={10} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteAthenaMessage(msg.id)}
-                                    title="Delete response"
-                                    aria-label="Delete response"
-                                    style={{
-                                      background: 'transparent',
-                                      border: '1px solid rgba(255, 34, 68, 0.45)',
-                                      color: 'var(--cp-magenta)',
-                                      padding: '2px 4px',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      cursor: 'pointer'
-                                    }}
-                                  >
-                                    <Trash2 size={10} />
-                                  </button>
-                                </div>
-                              )}
+                              <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyAthenaMessage(msg.text)}
+                                  title="Copy message"
+                                  aria-label="Copy message"
+                                  style={{
+                                    background: 'transparent',
+                                    border: '1px solid var(--cp-border)',
+                                    color: 'var(--cp-cyan)',
+                                    padding: '2px 4px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Copy size={10} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAthenaMessage(msg.id)}
+                                  title="Delete message"
+                                  aria-label="Delete message"
+                                  style={{
+                                    background: 'transparent',
+                                    border: '1px solid rgba(255, 34, 68, 0.45)',
+                                    color: 'var(--cp-magenta)',
+                                    padding: '2px 4px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Trash2 size={10} />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
                     ))}
                     {isAiLoading && (
-                      <div style={{ color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Loader size={10} className="animate-spin" /> deliberation...
                       </div>
                     )}
@@ -1992,47 +2684,266 @@ function App() {
                 selectedPrd ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
+                      <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
                         PRD DOCUMENT INSPECTOR
                       </span>
-                      {selectedPrd.status === 'draft' ? (
-                        <button 
-                          onClick={() => handlePushToConfluence(selectedPrd.id)}
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => setIsCreatePrdModalOpen(true)}
                           style={{
                             background: 'rgba(0, 229, 255, 0.1)',
                             border: '1px solid var(--cp-cyan)',
                             color: 'var(--cp-cyan)',
-                            fontSize: '10px',
+                            fontSize: '9px',
                             fontFamily: "'Share Tech Mono', monospace",
-                            padding: '2px 6px'
+                            padding: '1px 6px',
+                            cursor: 'pointer'
                           }}
                         >
-                          PUSH TO CONFLUENCE
+                          + ADD PRD
                         </button>
-                      ) : (
-                        <span style={{ color: 'var(--cp-green)', fontSize: '10px', fontFamily: "'Share Tech Mono', monospace", display: 'flex', alignItems: 'center', gap: '2px' }}>
-                          <Check size={12} /> CONFLUENCE OK
+                        <span style={{
+                          fontSize: '9px',
+                          color: 'var(--cp-green)',
+                          fontFamily: "'Share Tech Mono', monospace",
+                          fontWeight: 'bold'
+                        }}>
+                          // AUTO-SAVE
                         </span>
-                      )}
+                      </div>
                     </div>
 
-                    <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '10px' }}>
-                      <h3 style={{ margin: '0 0 6px 0', fontSize: '14px' }}>{selectedPrd.title}</h3>
-                      <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '8px' }}>
-                        Last updated: {new Date(selectedPrd.lastUpdated).toLocaleDateString()}
+                    <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>TITLE</span>
+                        <input
+                          type="text"
+                          value={selectedPrd.title}
+                          onChange={(e) => handleUpdatePrd(selectedPrd.id, { title: e.target.value })}
+                          onBlur={() => handleUpdatePrd(selectedPrd.id, {})}
+                          style={{
+                            background: 'var(--cp-bg-3)',
+                            border: '1px solid var(--cp-border)',
+                            color: 'var(--foreground)',
+                            fontSize: '11px',
+                            padding: '4px 6px',
+                            outline: 'none'
+                          }}
+                        />
+                      </label>
+
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>STATUS</span>
+                        <select
+                          value={selectedPrd.status}
+                          onChange={(e) => handleUpdatePrd(selectedPrd.id, { status: e.target.value as any }, true)}
+                          style={{
+                            background: 'var(--cp-bg-3)',
+                            border: '1px solid var(--cp-border)',
+                            color: 'var(--foreground)',
+                            fontSize: '11px',
+                            padding: '4px',
+                            outline: 'none'
+                          }}
+                        >
+                          <option value="draft">DRAFT</option>
+                          <option value="ready">READY</option>
+                          <option value="synced">SYNCED</option>
+                        </select>
+                      </label>
+
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>ASSIGNED SQUAD</span>
+                        <select
+                          value={selectedPrd.squadId || ''}
+                          onChange={(e) => handleUpdatePrd(selectedPrd.id, { squadId: e.target.value || undefined }, true)}
+                          style={{
+                            background: 'var(--cp-bg-3)',
+                            border: '1px solid var(--cp-border)',
+                            color: 'var(--foreground)',
+                            fontSize: '11px',
+                            padding: '4px',
+                            outline: 'none'
+                          }}
+                        >
+                          <option value="">UNASSIGNED</option>
+                          {(config?.squads || []).map(squad => (
+                            <option key={squad.id} value={squad.id}>
+                              {squad.name.toUpperCase()}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>REQUIREMENTS</span>
+                        <textarea
+                          value={selectedPrd.content}
+                          onChange={(e) => handleUpdatePrd(selectedPrd.id, { content: e.target.value })}
+                          onBlur={() => handleUpdatePrd(selectedPrd.id, {})}
+                          rows={8}
+                          style={{
+                            background: 'var(--cp-bg-3)',
+                            border: '1px solid var(--cp-border)',
+                            color: 'var(--foreground)',
+                            fontSize: '11px',
+                            padding: '6px',
+                            outline: 'none',
+                            fontFamily: 'monospace',
+                            resize: 'vertical'
+                          }}
+                        />
+                      </label>
+
+                      {/* Linked Tickets Section */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>LINKED JIRA TICKETS</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedTicketToEdit(null)
+                              setIsAddTicketModalOpen(true)
+                            }}
+                            style={{
+                              background: 'rgba(0, 229, 255, 0.1)',
+                              border: '1px solid var(--cp-cyan)',
+                              color: 'var(--cp-cyan)',
+                              fontSize: '9px',
+                              fontFamily: "'Share Tech Mono', monospace",
+                              padding: '1px 4px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            + ADD TICKET
+                          </button>
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {tickets.filter(t => t.prd_id === selectedPrd.id).length === 0 ? (
+                            <span style={{ fontSize: '10px', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>
+                              No tickets linked to this PRD.
+                            </span>
+                          ) : (
+                            tickets.filter(t => t.prd_id === selectedPrd.id).map(ticket => (
+                              <div 
+                                key={ticket.ticket_id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  background: 'var(--cp-bg-3)',
+                                  border: '1px solid var(--cp-border)',
+                                  padding: '4px 6px',
+                                  fontSize: '11px'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                                  <span style={{ color: 'var(--section-label)', fontWeight: 'bold', fontFamily: "'Share Tech Mono', monospace" }}>
+                                    {ticket.ticket_key}
+                                  </span>
+                                  <span style={{ color: 'var(--foreground)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', width: '120px' }} title={ticket.title}>
+                                    {ticket.title.replace(/\[SP-\d+\]\s*/i, '')}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ color: 'var(--cp-green)', fontWeight: 'bold', fontFamily: "'Share Tech Mono', monospace" }}>
+                                    {ticket.story_points} SP
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedTicketToEdit(ticket)
+                                      setIsAddTicketModalOpen(true)
+                                    }}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: 'var(--cp-cyan)',
+                                      cursor: 'pointer',
+                                      padding: '2px',
+                                      display: 'grid',
+                                      placeItems: 'center',
+                                      marginRight: '4px'
+                                    }}
+                                    title="Edit Ticket"
+                                  >
+                                    <Edit size={11} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={async (e) => {
+                                      e.stopPropagation()
+                                      const updated = { ...ticket, prd_id: undefined }
+                                      setTickets(prev => prev.map(t => t.ticket_id === ticket.ticket_id ? updated : t))
+                                      await updateTicketLocal(serverUrl, updated)
+                                    }}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: 'var(--cp-magenta)',
+                                      cursor: 'pointer',
+                                      padding: '2px',
+                                      display: 'grid',
+                                      placeItems: 'center'
+                                    }}
+                                    title="Unlink Ticket"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        <select
+                          value=""
+                          onChange={async (e) => {
+                            const val = e.target.value
+                            if (!val) return
+                            const ticket = tickets.find(t => t.ticket_id === val)
+                            if (ticket) {
+                              const updated = { ...ticket, prd_id: selectedPrd.id }
+                              setTickets(prev => prev.map(t => t.ticket_id === val ? updated : t))
+                              await updateTicketLocal(serverUrl, updated)
+                            }
+                          }}
+                          style={{
+                            background: 'var(--cp-bg-3)',
+                            border: '1px dashed var(--cp-cyan)',
+                            color: 'var(--cp-cyan)',
+                            fontSize: '11px',
+                            padding: '4px',
+                            marginTop: '4px',
+                            outline: 'none',
+                            fontFamily: "'Share Tech Mono', monospace",
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="">+ LINK TICKET...</option>
+                          {tickets.filter(t => t.prd_id !== selectedPrd.id).map(ticket => (
+                            <option key={ticket.ticket_id} value={ticket.ticket_id}>
+                              {ticket.ticket_key} - {ticket.title.substring(0, 30)}...
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace", marginTop: '4px' }}>
+                        Last updated: {new Date(selectedPrd.lastUpdated).toLocaleString()}
                       </div>
                       {selectedPrd.confluenceUrl && (
                         <a 
                           href="#" 
                           onClick={(e) => { e.preventDefault(); alert(`Opening wiki link: ${selectedPrd.confluenceUrl}`) }}
-                          style={{ color: 'var(--cp-cyan)', fontSize: '11px', textDecoration: 'underline', display: 'block', marginBottom: '8px' }}
+                          style={{ color: 'var(--cp-cyan)', fontSize: '10px', textDecoration: 'underline' }}
                         >
                           Confluence Space URL
                         </a>
                       )}
-                      <pre style={{ margin: 0, fontSize: '11px', color: 'var(--foreground)', background: 'var(--cp-bg-3)', padding: '6px', whiteSpace: 'pre-wrap', maxHeight: '180px', overflowY: 'auto' }}>
-                        {selectedPrd.content}
-                      </pre>
                     </div>
                   </div>
                 ) : (
@@ -2047,7 +2958,7 @@ function App() {
 
               {rightPanelTab === 'confluence' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
+                  <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
                     CONFLUENCE SITE STATUS
                   </span>
                   <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
@@ -2063,7 +2974,7 @@ function App() {
 
               {rightPanelTab === 'athena-logs' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
+                  <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
                     ATHENA COGNITIVE TELEMETRY
                   </span>
                   <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '10px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -2146,14 +3057,210 @@ function App() {
                       </div>
                     </div>
 
-                    <div>
-                      <div style={{ fontSize: '11px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '6px' }}>
-                        // ASSIGNED WORKLOAD ({selectedDevStats?.assignedTickets.length || 0})
+                    {(() => {
+                      const currentSprintTickets = (selectedDevStats?.assignedTickets || []).filter(
+                        (ticket) => currentSprint && ticket.sprint_id === currentSprint.id
+                      )
+                      const futureSprintTickets = (selectedDevStats?.assignedTickets || []).filter(
+                        (ticket) => !currentSprint || ticket.sprint_id !== currentSprint.id
+                      )
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          <div>
+                            <div style={{ fontSize: '11px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '6px', borderBottom: '1px solid var(--cp-border)', paddingBottom: '4px' }}>
+                              CURRENT SPRINT WORKLOAD ({currentSprintTickets.length})
+                            </div>
+                            <MiniJiraBoard
+                              tickets={currentSprintTickets}
+                              onSelectTicket={(ticketId) => setSelectedTicketId(ticketId)}
+                            />
+                          </div>
+
+                          <div>
+                            <div style={{ fontSize: '11px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '6px', borderBottom: '1px solid var(--cp-border)', paddingBottom: '4px' }}>
+                              FUTURE SPRINTS & BACKLOG ({futureSprintTickets.length})
+                            </div>
+                            <MiniJiraBoard
+                              tickets={futureSprintTickets}
+                              onSelectTicket={(ticketId) => setSelectedTicketId(ticketId)}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    <div style={{ marginTop: '4px', borderTop: '1px solid var(--cp-border)', paddingTop: '12px' }}>
+                      {(() => {
+                        const devEvents = availabilityEvents.filter(e => e.developer_id === selectedDeveloper.id)
+                        if (devEvents.length > 0) {
+                          return (
+                            <div style={{ marginBottom: '12px' }}>
+                              <div style={{ fontSize: '11px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '6px' }}>
+                                SCHEDULED TIME OFF ({devEvents.length})
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                {devEvents.map(event => (
+                                  <div
+                                    key={event.id}
+                                    style={{
+                                      background: 'var(--cp-bg-2)',
+                                      border: '1px solid var(--cp-border)',
+                                      padding: '8px 10px',
+                                      fontSize: '11px',
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center',
+                                      gap: '8px'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <span style={{
+                                          color: event.type === 'sick' ? 'var(--cp-magenta)' : event.type === 'pto' ? 'var(--cp-cyan)' : 'var(--cp-green)',
+                                          fontFamily: "'Share Tech Mono', monospace",
+                                          fontSize: '10px',
+                                          textTransform: 'uppercase',
+                                          background: event.type === 'sick' ? 'rgba(255, 0, 170, 0.1)' : event.type === 'pto' ? 'rgba(0, 229, 255, 0.1)' : 'rgba(0, 255, 136, 0.1)',
+                                          border: event.type === 'sick' ? '1px solid rgba(255, 0, 170, 0.3)' : event.type === 'pto' ? '1px solid rgba(0, 229, 255, 0.3)' : '1px solid rgba(0, 255, 136, 0.3)',
+                                          padding: '1px 4px',
+                                          borderRadius: '2px'
+                                        }}>
+                                          {event.type}
+                                        </span>
+                                        <strong style={{ color: 'var(--foreground)' }}>{event.title}</strong>
+                                      </div>
+                                      <div style={{ color: 'var(--muted-foreground)', fontSize: '10px' }}>
+                                        {event.start_date === event.end_date ? event.start_date : `${event.start_date} to ${event.end_date}`}
+                                      </div>
+                                      {event.notes && (
+                                        <div style={{ color: 'var(--muted-foreground)', fontStyle: 'italic', fontSize: '10px' }}>
+                                          Note: {event.notes}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteAvailabilityEvent(event.id)}
+                                      title="Delete vacation event"
+                                      style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: 'var(--cp-magenta)',
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        display: 'grid',
+                                        placeItems: 'center',
+                                        opacity: 0.8
+                                      }}
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        }
+                        return null
+                      })()}
+
+                      <div style={{ fontSize: '11px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '6px' }}>
+                        // SCHEDULE TIME OFF / VACATION
                       </div>
-                      <MiniJiraBoard
-                        tickets={selectedDevStats?.assignedTickets || []}
-                        onSelectTicket={(ticketId) => setSelectedTicketId(ticketId)}
-                      />
+                      <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          <label style={{ display: 'grid', gap: '2px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace" }}>Type</span>
+                            <select
+                              value={devVacationType}
+                              onChange={(e) => {
+                                const val = e.target.value as 'vacation' | 'sick' | 'pto'
+                                setDevVacationType(val)
+                                setDevVacationTitle(val.charAt(0).toUpperCase() + val.slice(1))
+                              }}
+                              style={{ background: 'var(--cp-bg-3)', color: 'var(--foreground)', border: '1px solid var(--cp-border)', padding: '4px', fontSize: '11px', outline: 'none' }}
+                            >
+                              <option value="vacation">Vacation</option>
+                              <option value="sick">Sick</option>
+                              <option value="pto">PTO</option>
+                            </select>
+                          </label>
+                          <label style={{ display: 'grid', gap: '2px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace" }}>Title</span>
+                            <input
+                              type="text"
+                              value={devVacationTitle}
+                              onChange={(e) => setDevVacationTitle(e.target.value)}
+                              placeholder="e.g. Summer Leave"
+                              style={{ background: 'var(--cp-bg-3)', color: 'var(--foreground)', border: '1px solid var(--cp-border)', padding: '4px 6px', fontSize: '11px', outline: 'none' }}
+                            />
+                          </label>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          <label style={{ display: 'grid', gap: '2px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace" }}>Start Date</span>
+                            <input
+                              type="date"
+                              value={devVacationStart}
+                              onChange={(e) => setDevVacationStart(e.target.value)}
+                              onClick={(e) => { try { e.currentTarget.showPicker(); } catch {} }}
+                              style={{ background: 'var(--cp-bg-3)', color: 'var(--foreground)', border: '1px solid var(--cp-border)', padding: '4px', fontSize: '11px', outline: 'none' }}
+                            />
+                          </label>
+                          <label style={{ display: 'grid', gap: '2px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace" }}>End Date</span>
+                            <input
+                              type="date"
+                              value={devVacationEnd}
+                              onChange={(e) => setDevVacationEnd(e.target.value)}
+                              onClick={(e) => { try { e.currentTarget.showPicker(); } catch {} }}
+                              style={{ background: 'var(--cp-bg-3)', color: 'var(--foreground)', border: '1px solid var(--cp-border)', padding: '4px', fontSize: '11px', outline: 'none' }}
+                            />
+                          </label>
+                        </div>
+                        <label style={{ display: 'grid', gap: '2px' }}>
+                          <span style={{ fontSize: '10px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace" }}>Notes (Optional)</span>
+                          <input
+                            type="text"
+                            value={devVacationNotes}
+                            onChange={(e) => setDevVacationNotes(e.target.value)}
+                            placeholder="e.g. Out of office, offline"
+                            style={{ background: 'var(--cp-bg-3)', color: 'var(--foreground)', border: '1px solid var(--cp-border)', padding: '4px 6px', fontSize: '11px', outline: 'none' }}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!devVacationTitle.trim()) return
+                            handleAddAvailabilityEvent({
+                              developer_id: selectedDeveloper.id,
+                              type: devVacationType,
+                              title: devVacationTitle.trim(),
+                              start_date: devVacationStart,
+                              end_date: devVacationEnd,
+                              notes: devVacationNotes.trim() || undefined
+                            })
+                            setDevVacationNotes('')
+                          }}
+                          style={{
+                            background: 'rgba(0, 255, 136, 0.08)',
+                            border: '1px solid rgba(0, 255, 136, 0.35)',
+                            color: 'var(--cp-green)',
+                            padding: '6px 12px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            fontFamily: "'Share Tech Mono', monospace",
+                            textTransform: 'uppercase'
+                          }}
+                        >
+                          <Plus size={12} />
+                          Add Time Off
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -2179,15 +3286,32 @@ function App() {
                   sprintPlans={sprintPlans}
                   currentSprint={currentSprint}
                   availabilityEvents={availabilityEvents}
-                  tickets={tickets}
+                  tickets={squadScopedTickets}
                   onCreateSprint={handleCreateSprint}
                   onSetCurrentSprint={handleSetCurrentSprint}
                   onCompleteSprint={handleCompleteSprint}
                   onAddAvailabilityEvent={handleAddAvailabilityEvent}
+                  onUpdateTicket={handleUpdateTicket}
                 />
               )}
 
-
+              {rightPanelTab === 'sprint-future' && (
+                <SprintWorkbenchPanel
+                  mode="future"
+                  activeSquad={activeSquad}
+                  history={squadStatsHistory}
+                  latest={latestSquadSnapshot}
+                  sprintPlans={sprintPlans}
+                  currentSprint={currentSprint}
+                  availabilityEvents={availabilityEvents}
+                  tickets={squadScopedTickets}
+                  onCreateSprint={handleCreateSprint}
+                  onSetCurrentSprint={handleSetCurrentSprint}
+                  onCompleteSprint={handleCompleteSprint}
+                  onAddAvailabilityEvent={handleAddAvailabilityEvent}
+                  onUpdateTicket={handleUpdateTicket}
+                />
+              )}
 
               {rightPanelTab === 'sprint-past' && (
                 <SprintWorkbenchPanel
@@ -2198,11 +3322,12 @@ function App() {
                   sprintPlans={sprintPlans}
                   currentSprint={currentSprint}
                   availabilityEvents={availabilityEvents}
-                  tickets={tickets}
+                  tickets={squadScopedTickets}
                   onCreateSprint={handleCreateSprint}
                   onSetCurrentSprint={handleSetCurrentSprint}
                   onCompleteSprint={handleCompleteSprint}
                   onAddAvailabilityEvent={handleAddAvailabilityEvent}
+                  onUpdateTicket={handleUpdateTicket}
                 />
               )}
 
@@ -2211,24 +3336,60 @@ function App() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", fontWeight: 'bold', fontSize: '14px' }}>
+                        <span style={{ color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", fontWeight: 'bold', fontSize: '14px' }}>
                           {selectedTicket.ticket_key}
                         </span>
-                        <button 
-                          onClick={() => unassignTicket(selectedTicket.ticket_id)}
-                          disabled={!selectedTicket.assignee}
-                          style={{
-                            background: 'transparent',
-                            border: '1px solid rgba(255, 34, 68, 0.4)',
-                            color: '#ff2244',
-                            fontSize: '9px',
-                            fontFamily: "'Share Tech Mono', monospace",
-                            padding: '1px 4px',
-                            opacity: selectedTicket.assignee ? 1 : 0.3
-                          }}
-                        >
-                          UNASSIGN
-                        </button>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button 
+                            onClick={() => {
+                              setSelectedTicketToEdit(selectedTicket)
+                              setIsAddTicketModalOpen(true)
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: '1px solid rgba(0, 229, 255, 0.4)',
+                              color: 'var(--cp-cyan)',
+                              fontSize: '9px',
+                              fontFamily: "'Share Tech Mono', monospace",
+                              padding: '1px 4px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            EDIT TICKET
+                          </button>
+                          <button 
+                            onClick={() => unassignTicket(selectedTicket.ticket_id)}
+                            disabled={!selectedTicket.assignee}
+                            style={{
+                              background: 'transparent',
+                              border: '1px solid rgba(255, 34, 68, 0.4)',
+                              color: '#ff2244',
+                              fontSize: '9px',
+                              fontFamily: "'Share Tech Mono', monospace",
+                              padding: '1px 4px',
+                              opacity: selectedTicket.assignee ? 1 : 0.3,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            UNASSIGN
+                          </button>
+                          {!selectedTicket.assignee && (
+                            <button 
+                              onClick={() => handleDeleteTicket(selectedTicket.ticket_id)}
+                              style={{
+                                background: 'transparent',
+                                border: '1px solid rgba(255, 34, 68, 0.4)',
+                                color: '#ff2244',
+                                fontSize: '9px',
+                                fontFamily: "'Share Tech Mono', monospace",
+                                padding: '1px 4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              DELETE
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <h3 style={{ margin: '4px 0', fontSize: '15px', color: 'var(--foreground)' }}>
                         {selectedTicket.title.replace(/\[SP-\d+\]\s*/i, '')}
@@ -2298,6 +3459,25 @@ function App() {
                         </select>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--muted-foreground)' }}>PRD Link:</span>
+                        <select
+                          value={selectedTicket.prd_id || ''}
+                          onChange={async (e) => {
+                            const updated = { ...selectedTicket, prd_id: e.target.value || undefined }
+                            setTickets(prev => prev.map(t => t.ticket_id === selectedTicket.ticket_id ? updated : t))
+                            await updateTicketLocal(runtime.serverUrl, updated)
+                          }}
+                          style={{ background: 'var(--cp-bg-3)', color: 'var(--foreground)', border: '1px solid var(--cp-border)', outline: 'none', fontSize: '11px', maxWidth: '140px' }}
+                        >
+                          <option value="">None</option>
+                          {prds.map(prd => (
+                            <option key={prd.id} value={prd.id}>
+                              {prd.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: 'var(--muted-foreground)' }}>Reporter:</span>
                         <span>{selectedTicket.reporter}</span>
                       </div>
@@ -2305,8 +3485,8 @@ function App() {
 
                     {selectedTicket.assignee && (
                       <div style={{ background: 'rgba(0, 229, 255, 0.04)', border: '1px solid rgba(0, 229, 255, 0.1)', padding: '10px' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '4px' }}>
-                          // ASSIGNED OWNER METRICS
+                        <div style={{ fontSize: '11px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '4px' }}>
+                          ASSIGNED OWNER METRICS
                         </div>
                         {(() => {
                           const ownerStats = devLoadStats.find(s => s.dev.id === selectedTicket.assignee)
@@ -2343,7 +3523,7 @@ function App() {
 
               {rightPanelTab === 'create-ticket' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
+                  <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
                     QUICK INGEST NEW BLUEPRINT
                   </span>
                   <form onSubmit={handleCreateTicket} style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--cp-bg-2)', padding: '10px', border: '1px solid var(--cp-border)' }}>
@@ -2392,7 +3572,7 @@ function App() {
 
               {rightPanelTab === 'threshold-config' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
+                  <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
                     SAFETY BUFFER CONTROLLER
                   </span>
                   <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -2422,7 +3602,7 @@ function App() {
 
               {rightPanelTab === 'health-status' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
+                  <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
                     SYSTEM CONNECTION GATEWAYS
                   </span>
                   <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '10px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -2439,39 +3619,48 @@ function App() {
         {/* Right Sidebar Rail */}
         <aside className="icon-rail rail-right" style={{ background: 'var(--cp-bg-1)', borderLeft: '1px solid var(--cp-border)', borderRight: '0' }}>
           <div className="rail-top">
-            {/* Ask Athena - Always available on the right rail */}
-            <button 
+            <button
               className={`nav-icon ${rightPanelOpen && rightPanelTab === 'athena-chat' ? 'active' : ''}`}
               onClick={() => handleRightRailClick('athena-chat')}
-              title="athena chat"
-              style={{ marginBottom: '12px', borderBottom: '1px solid var(--cp-border)', width: '40px', height: '40px' }}
+              title="Athena Copilot"
             >
               <Sparkles size={16} />
-              <span className="rail-label-text">athena chat</span>
+              <span className="rail-label-text">athena</span>
             </button>
-
-            {activeTab === 'projects' && (
+            {activeTab === 'projects' && isProjectDrawerOpen && (
               <>
+                <button
+                  className={`nav-icon ${rightPanelOpen && rightPanelTab === 'project-features' ? 'active' : ''}`}
+                  onClick={() => {
+                    handleRightRailClick('project-features')
+                  }}
+                  title={selectedPmProject ? `Features in ${selectedPmProject.name}` : 'Project features'}
+                >
+                  <Tag size={16} />
+                  <span className="rail-label-text">features</span>
+                </button>
                 <button 
-                  className={`nav-icon ${rightPanelOpen && rightPanelTab === 'prd-inspector' ? 'active' : ''}`}
-                  onClick={() => handleRightRailClick('prd-inspector')}
-                  title="PRD Document Inspector"
+                  className={`nav-icon ${rightPanelOpen && rightPanelTab === 'project-prds' ? 'active' : ''}`}
+                  onClick={() => {
+                    handleRightRailClick('project-prds')
+                  }}
+                  title={selectedPmProject ? `PRDs in ${selectedPmProject.name}` : 'Project PRDs'}
                 >
                   <FileText size={16} />
+                  <span className="rail-label-text">prds</span>
                 </button>
                 <button 
-                  className={`nav-icon ${rightPanelOpen && rightPanelTab === 'confluence' ? 'active' : ''}`}
-                  onClick={() => handleRightRailClick('confluence')}
-                  title="Confluence Space Gateway"
+                  className="nav-icon"
+                  onClick={() => {
+                    if (!selectedPmProject) return
+                    if (confirm(`Delete ${selectedPmProject.name}?`)) {
+                      setProjectActionSignal({ type: 'delete', projectId: selectedPmProject.id, nonce: Date.now() })
+                    }
+                  }}
+                  title={selectedPmProject ? `Delete ${selectedPmProject.name}` : 'Delete project'}
                 >
-                  <Globe size={16} />
-                </button>
-                <button 
-                  className={`nav-icon ${rightPanelOpen && rightPanelTab === 'athena-logs' ? 'active' : ''}`}
-                  onClick={() => handleRightRailClick('athena-logs')}
-                  title="Athena Code Context"
-                >
-                  <Search size={16} />
+                  <Trash2 size={16} />
+                  <span className="rail-label-text">delete</span>
                 </button>
               </>
             )}
@@ -2498,6 +3687,13 @@ function App() {
                   title="Current Sprint Details"
                 >
                   <Zap size={16} />
+                </button>
+                <button
+                  className={`nav-icon ${rightPanelOpen && rightPanelTab === 'sprint-future' ? 'active' : ''}`}
+                  onClick={() => handleRightRailClick('sprint-future')}
+                  title="Future Sprint Planning"
+                >
+                  <CalendarDays size={16} />
                 </button>
                 <button
                   className={`nav-icon ${rightPanelOpen && rightPanelTab === 'sprint-past' ? 'active' : ''}`}
@@ -2628,6 +3824,80 @@ function App() {
         squadOptions={config?.squads || []}
         regions={Object.keys(config?.company_holidays_by_region || {})}
       />
+      <AddTicketModal
+        isOpen={isAddTicketModalOpen}
+        onClose={() => {
+          setIsAddTicketModalOpen(false)
+          setSelectedTicketToEdit(null)
+        }}
+        onCreate={handleCreateTicketFromPRD}
+        onUpdate={handleUpdateTicketFromModal}
+        ticket={selectedTicketToEdit}
+      />
+      {isCreatePrdModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.65)', display: 'grid', placeItems: 'center', padding: '20px' }}>
+          <div style={{ width: 'min(760px, 96vw)', background: 'var(--cp-bg-1)', border: '1px solid var(--cp-border)', boxShadow: '0 24px 80px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--cp-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--cp-bg-2)' }}>
+              <span style={{ fontSize: '10px', fontFamily: "'Share Tech Mono', monospace", letterSpacing: '0.12em', color: 'var(--section-label)', textTransform: 'uppercase' }}>
+                NEW PRD
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsCreatePrdModalOpen(false)}
+                style={{ background: 'transparent', border: 0, color: 'var(--muted-foreground)', cursor: 'pointer' }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                const form = e.currentTarget
+                const title = (form.elements.namedItem('title') as HTMLInputElement | null)?.value || ''
+                const content = (form.elements.namedItem('content') as HTMLTextAreaElement | null)?.value || ''
+                handleCreatePrdFromModal({ title, content })
+              }}
+              style={{ padding: '16px', display: 'grid', gap: '12px' }}
+            >
+              <label style={{ display: 'grid', gap: '4px' }}>
+                <span style={{ fontSize: '10px', fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)' }}>TITLE</span>
+                <input
+                  name="title"
+                  type="text"
+                  defaultValue=""
+                  placeholder="PRD title"
+                  style={{ background: 'var(--cp-bg-3)', border: '1px solid var(--cp-border)', color: 'var(--foreground)', padding: '8px 10px', fontSize: '12px', outline: 'none' }}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: '4px' }}>
+                <span style={{ fontSize: '10px', fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)' }}>CONTENT</span>
+                <textarea
+                  name="content"
+                  rows={14}
+                  defaultValue="# New PRD\n\n## Overview\n\n## Goals\n\n## User Stories\n\n## Acceptance Criteria\n"
+                  placeholder="PRD content"
+                  style={{ background: 'var(--cp-bg-3)', border: '1px solid var(--cp-border)', color: 'var(--foreground)', padding: '8px 10px', fontSize: '12px', outline: 'none', fontFamily: 'monospace', resize: 'vertical' }}
+                />
+              </label>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsCreatePrdModalOpen(false)}
+                  style={{ background: 'transparent', border: '1px solid var(--cp-border)', color: 'var(--muted-foreground)', padding: '8px 12px', cursor: 'pointer', fontFamily: "'Share Tech Mono', monospace", fontSize: '11px' }}
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="submit"
+                  style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid var(--cp-cyan)', color: 'var(--cp-cyan)', padding: '8px 12px', cursor: 'pointer', fontFamily: "'Share Tech Mono', monospace", fontSize: '11px' }}
+                >
+                  CREATE PRD
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {/* Login Modal Overlay */}
       {!profile && (
         <LoginScreen onLogin={handleLoginWithKey} />
@@ -2927,6 +4197,15 @@ function PromptTracker({
     })
   }
 
+  function handleClearRuns() {
+    const remaining = runs.filter((run) => !filteredRuns.some((fr) => fr.id === run.id))
+    saveAthenaRuns(remaining)
+    setRuns(remaining)
+    setSelectedRunId(null)
+    setSelectedRunEvents(null)
+    window.dispatchEvent(new Event('savant-forge-prompt-runs-changed'))
+  }
+
   return (
     <>
       <button
@@ -2943,7 +4222,7 @@ function PromptTracker({
           <div className="prompt-tracker-head">
             <div className="prompt-tracker-title">
               <Terminal size={14} />
-              <span>// FORGE PROMPT TRACKER</span>
+              <span>FORGE PROMPT TRACKER</span>
             </div>
             <button onClick={() => setIsOpen(false)} title="Close prompt tracker" aria-label="Close prompt tracker">
               <X size={14} />
@@ -2952,7 +4231,38 @@ function PromptTracker({
 
           <div className="prompt-tracker-body">
             <div className="prompt-run-list">
-              <div className="prompt-pane-label">Run Registry</div>
+              <div className="prompt-pane-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Run Registry</span>
+                {filteredRuns.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearRuns}
+                    title="Clear all tracks"
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid rgba(255, 34, 68, 0.35)',
+                      color: 'var(--cp-magenta)',
+                      fontSize: '9px',
+                      fontFamily: "'Share Tech Mono', monospace",
+                      padding: '1px 6px',
+                      cursor: 'pointer',
+                      textTransform: 'uppercase',
+                      transition: 'all 0.2s ease',
+                      borderRadius: '2px'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 34, 68, 0.1)';
+                      e.currentTarget.style.borderColor = 'rgba(255, 34, 68, 0.6)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.borderColor = 'rgba(255, 34, 68, 0.35)';
+                    }}
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
               <div className="prompt-run-scroll">
                 {filteredRuns.length === 0 ? (
                   <div className="prompt-empty">No Forge runs captured</div>
@@ -2993,9 +4303,27 @@ function PromptTracker({
                     )}
                   </div>
 
+                  {selectedRun?.prompt && (
+                    <div style={{
+                      background: 'rgba(0, 0, 0, 0.4)',
+                      border: '1px solid var(--cp-border)',
+                      padding: '8px 10px',
+                      fontSize: '11px',
+                      fontFamily: "'Share Tech Mono', monospace",
+                      maxHeight: '80px',
+                      overflowY: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      color: 'var(--foreground)'
+                    }}>
+                      <div style={{ color: 'var(--cp-cyan)', fontSize: '9px', textTransform: 'uppercase', marginBottom: '4px' }}>&gt; Prompt Sent:</div>
+                      {selectedRun.prompt}
+                    </div>
+                  )}
+
                   <div className="prompt-terminal">
                     <div className="prompt-terminal-head">
-                      <span>// execution event log</span>
+                      <span>execution event log</span>
                       {isPollingEvents && <span>polling...</span>}
                     </div>
 

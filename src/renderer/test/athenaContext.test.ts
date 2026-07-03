@@ -4,7 +4,8 @@ import {
   fetchAthenaMcpTools,
   formatAthenaContextHits,
   buildAthenaPromptSections,
-  ATHENA_SYSTEM_DIRECTIVE
+  ATHENA_SYSTEM_DIRECTIVE,
+  resolveAthenaPersona
 } from '../services/athenaContext'
 
 describe('athenaContext', () => {
@@ -83,4 +84,34 @@ describe('athenaContext', () => {
       expect(result).toContain('[Section A]\nContent A')
     })
   })
+
+  describe('resolveAthenaPersona', () => {
+    it('returns prompt on success', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ prompt: 'Resolved prompt text' })
+      } as Response)
+
+      const result = await resolveAthenaPersona('http://localhost', 'persona.product', ['product'])
+      expect(result).toBe('Resolved prompt text')
+    })
+
+    it('falls back to persona on success if prompt is missing', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ persona: 'Persona only text' })
+      } as Response)
+
+      const result = await resolveAthenaPersona('http://localhost', 'persona.product', ['product'])
+      expect(result).toBe('Persona only text')
+    })
+
+    it('returns empty string if API call fails', async () => {
+      vi.mocked(fetch).mockRejectedValueOnce(new Error('resolve fail'))
+
+      const result = await resolveAthenaPersona('http://localhost', 'persona.product', ['product'])
+      expect(result).toBe('')
+    })
+  })
 })
+

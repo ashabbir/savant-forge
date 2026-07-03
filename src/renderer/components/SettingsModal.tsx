@@ -209,7 +209,7 @@ export function SettingsModal({
         <div className="modal-head border-b border-[var(--cp-border)] pb-3" style={{ borderBottom: '1px solid var(--cp-border)', paddingBottom: '8px', marginBottom: '12px' }}>
           <div>
             <div className="eyebrow">System Preferences</div>
-            <h2 style={{ margin: 0, fontSize: '16px', color: 'var(--cp-cyan)', fontFamily: "'Orbitron', sans-serif" }} className="tracking-widest uppercase">
+            <h2 style={{ margin: 0, fontSize: '14px', color: 'var(--cp-cyan)', fontFamily: "'Orbitron', sans-serif" }} className="tracking-widest uppercase">
               FORGE SETTINGS
             </h2>
           </div>
@@ -242,13 +242,14 @@ export function SettingsModal({
                   background: isActive ? 'rgba(0, 229, 255, 0.08)' : 'transparent',
                   border: 'none',
                   borderBottom: isActive ? '2px solid var(--cp-cyan)' : '2px solid transparent',
-                  color: isActive ? 'var(--cp-cyan)' : 'var(--muted-foreground)',
+                  color: isActive ? 'var(--cp-cyan)' : 'var(--foreground)',
                   padding: '10px 16px',
                   cursor: 'pointer',
                   fontFamily: "'Orbitron', sans-serif",
                   fontSize: '11px',
                   fontWeight: 'bold',
                   letterSpacing: '0.05em',
+                  opacity: isActive ? 1 : 0.55,
                   transition: 'all 0.15s ease-in-out',
                   outline: 'none'
                 }}
@@ -273,12 +274,12 @@ export function SettingsModal({
               padding: '16px' 
             }}
           >
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--cp-cyan)', fontSize: '11px' }}>
-              // Operator Identification & Key Registry
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)', fontSize: '11px' }}>
+              Operator Identification & Key Registry
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Operator User Name</label>
+              <label style={{ fontSize: '11px', color: 'var(--foreground)', opacity: 0.75 }}>Operator User Name</label>
               <input
                 type="text"
                 value={profileName}
@@ -297,7 +298,7 @@ export function SettingsModal({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Operator API Key</label>
+              <label style={{ fontSize: '11px', color: 'var(--foreground)', opacity: 0.75 }}>Operator API Key</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <div style={{ 
                   flex: 1, 
@@ -363,12 +364,12 @@ export function SettingsModal({
               padding: '16px' 
             }}
           >
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--cp-cyan)', fontSize: '11px' }}>
-              // Savant Central Registry Service Config
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)', fontSize: '11px' }}>
+              Savant Central Registry Service Config
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Savant Server URL</label>
+              <label style={{ fontSize: '11px', color: 'var(--foreground)', opacity: 0.75 }}>Savant Server URL</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
                   type="text"
@@ -459,12 +460,12 @@ export function SettingsModal({
               padding: '16px' 
             }}
           >
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--cp-cyan)', fontSize: '11px' }}>
-              // Gateway Communication Routing
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)', fontSize: '11px' }}>
+              Gateway Communication Routing
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Gateway URL</label>
+              <label style={{ fontSize: '11px', color: 'var(--foreground)', opacity: 0.75 }}>Gateway URL</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
                   type="text"
@@ -556,12 +557,12 @@ export function SettingsModal({
               padding: '16px' 
             }}
           >
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--cp-cyan)', fontSize: '11px' }}>
-              // Athena Copilot Service Engine
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)', fontSize: '11px' }}>
+              Athena Copilot Service Engine
             </div>
 
             <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Athena Provider</span>
+              <span style={{ fontSize: '11px', color: 'var(--foreground)', opacity: 0.75 }}>Athena Provider</span>
               {hasProviders ? (
                 <select
                   value={selectedProvider}
@@ -583,7 +584,7 @@ export function SettingsModal({
             </label>
 
             <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Athena Model</span>
+              <span style={{ fontSize: '11px', color: 'var(--foreground)', opacity: 0.75 }}>Athena Model</span>
               {hasProviders ? (
                 <select
                   value={selectedModel}
@@ -607,7 +608,7 @@ export function SettingsModal({
             {/* Gateway Providers / Models inventory list (hidden from user, preserved in DOM for test suite) */}
             <div style={{ display: 'none' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--cp-border)', paddingBottom: '6px', marginBottom: '4px' }}>
-                <span style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase' }}>
                   Gateway Providers
                 </span>
                 <span style={{ fontSize: '9px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace" }}>
@@ -704,13 +705,13 @@ export function SettingsModal({
               padding: '16px' 
             }}
           >
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--cp-cyan)', fontSize: '11px' }}>
-              // Forge Engine Core Controls
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)', fontSize: '11px' }}>
+              Forge Engine Core Controls
             </div>
 
             {/* Buffer threshold */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Safety Buffer Capacity Threshold</label>
+              <label style={{ fontSize: '11px', color: 'var(--foreground)', opacity: 0.75 }}>Safety Buffer Capacity Threshold</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <input 
                   type="range" 
@@ -734,7 +735,7 @@ export function SettingsModal({
 
             {/* Workdays */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px dashed var(--cp-border)', paddingTop: '10px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Global Workdays</label>
+              <label style={{ fontSize: '11px', color: 'var(--foreground)', opacity: 0.75 }}>Global Workdays</label>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => {
                   const isWorkday = (config?.workdays || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']).includes(day)
@@ -764,13 +765,13 @@ export function SettingsModal({
 
             {/* Region / Holidays editor */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--cp-border)', paddingTop: '12px' }}>
-              <span style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Regions & Region Holidays</span>
+              <span style={{ fontSize: '11px', color: 'var(--foreground)', opacity: 0.75 }}>Regions & Region Holidays</span>
               
               <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '12px' }}>
                 {/* Active Regions list selector */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderRight: '1px solid var(--cp-border)', paddingRight: '8px' }}>
-                  <span style={{ fontSize: '9px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
-                    // Active Regions
+                  <span style={{ fontSize: '9px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
+                    Active Regions
                   </span>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '110px', overflowY: 'auto' }}>
@@ -837,8 +838,8 @@ export function SettingsModal({
 
                 {/* Holiday list and forms */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <span style={{ fontSize: '9px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
-                    // Holidays in {currentRegion.toUpperCase()}
+                  <span style={{ fontSize: '9px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
+                    Holidays in {currentRegion.toUpperCase()}
                   </span>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '110px', overflowY: 'auto', background: 'var(--cp-bg-3)', padding: '4px', border: '1px solid var(--cp-border)' }}>
@@ -906,6 +907,7 @@ export function SettingsModal({
                       type="date"
                       value={newHolidayDate}
                       onChange={(e) => setNewHolidayDate(e.target.value)}
+                      onClick={(e) => { try { e.currentTarget.showPicker(); } catch {} }}
                       style={{
                         flex: 1.2,
                         background: 'var(--cp-bg-3)',
@@ -943,25 +945,37 @@ export function SettingsModal({
         {/* Environment Status (Always rendered at the bottom for tests compatibility) */}
         <div style={{ display: 'flex', gap: '16px', marginTop: '10px', fontSize: '11px', borderTop: '1px dashed var(--cp-border)', paddingTop: '10px' }}>
           <div>
-            <span style={{ display: 'block', fontSize: '10px', color: 'var(--muted-foreground)' }}>Environment</span>
+            <span style={{ display: 'block', fontSize: '10px', color: 'var(--foreground)', opacity: 0.5 }}>Environment</span>
             <strong style={{ color: 'var(--cp-yellow)', fontFamily: "'Share Tech Mono', monospace" }}>{theme.toUpperCase()}</strong>
           </div>
           <div>
-            <span style={{ display: 'block', fontSize: '10px', color: 'var(--muted-foreground)' }}>Server URL</span>
+            <span style={{ display: 'block', fontSize: '10px', color: 'var(--foreground)', opacity: 0.5 }}>Server URL</span>
             <strong style={{ color: 'var(--foreground)', fontFamily: "'Share Tech Mono', monospace" }}>{serverUrl}</strong>
           </div>
           <div>
-            <span style={{ display: 'block', fontSize: '10px', color: 'var(--muted-foreground)' }}>Gateway Link</span>
+            <span style={{ display: 'block', fontSize: '10px', color: 'var(--foreground)', opacity: 0.5 }}>Gateway Link</span>
             <strong style={{ color: 'var(--foreground)', fontFamily: "'Share Tech Mono', monospace" }}>{gatewayUrl}</strong>
           </div>
         </div>
 
         {/* Footer Actions */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--cp-border)' }}>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: '10px', color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: '10px', color: 'var(--foreground)', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             {hasProviders ? 'Gateway providers loaded' : 'Gateway provider discovery failed'}
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{
+              fontSize: '9px',
+              color: 'var(--cp-green)',
+              fontFamily: "'Share Tech Mono', monospace",
+              border: '1px solid rgba(0, 255, 136, 0.3)',
+              background: 'rgba(0, 255, 136, 0.05)',
+              padding: '4px 8px',
+              fontWeight: 'bold',
+              letterSpacing: '0.05em'
+            }}>
+              AUTO-SAVE ACTIVE
+            </span>
             <button
               onClick={onClose}
               aria-label="Close"
@@ -969,14 +983,6 @@ export function SettingsModal({
               style={{ background: 'transparent', border: '1px solid rgba(255, 0, 170, 0.35)', color: 'var(--cp-magenta)', width: '28px', height: '28px', display: 'grid', placeItems: 'center', cursor: 'pointer' }}
             >
               <X size={14} />
-            </button>
-            <button
-              onClick={onClose}
-              aria-label="Save"
-              title="Save"
-              style={{ background: 'rgba(0, 255, 136, 0.08)', border: '1px solid rgba(0, 255, 136, 0.35)', color: 'var(--cp-green)', width: '28px', height: '28px', display: 'grid', placeItems: 'center', cursor: 'pointer' }}
-            >
-              <Check size={14} />
             </button>
           </div>
         </div>

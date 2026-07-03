@@ -6,6 +6,12 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    setupFiles: ['./src/renderer/test/setup.ts'],
+    poolOptions: {
+      threads: {
+        execArgv: ['--no-webstorage']
+      }
+    },
     coverage: {
       provider: 'v8',
       include: ['src/renderer/**/*.{ts,tsx}'],

@@ -1,11 +1,10 @@
-# Sanctum Style Guide
+# Forge Style Guide
 
 ## Purpose
 
-To create a savant eco system proejct we have a style guide 
-desktop app with the same operational family as Quorum and Olympus, but a cleaner product boundary. The UI should feel like a command surface for user-scoped work, not a generic dashboard and not a chat client.
+Forge is a Savant ecosystem desktop app with the same operational family as Quorum and Olympus, but a cleaner product boundary. The UI should feel like a command surface for product and delivery work, not a generic dashboard and not a chat client.
 
-This guide defines the visual system, shell layout, density, and interaction patterns for Sanctum.
+This guide defines the visual system, shell layout, density, and interaction patterns for Forge.
 
 ## 1. Design Direction
 
@@ -39,7 +38,7 @@ Avoid:
 
 ## 2. App Shell
 
-Sanctum should use a persistent desktop shell with five main regions:
+Forge should use a persistent desktop shell with five main regions:
 
 - top header
 - left navigation rail
@@ -109,6 +108,35 @@ Behavior:
 - section grouping should be visible
 - counts and badges should be compact
 
+### 3.2.1 Left Collapsible Panel
+
+When a view needs an entity list immediately after the left rail, that list is the Left Collapsible Panel. It is a secondary tree, registry, or planning pane and must be collapsible.
+
+Use this pane for:
+
+- squad trees
+- project/PRD registries
+- blueprint or ticket lists
+- workspace trees
+- tool, skill, or MCP registry lists
+- scheduler matrices and reminder filters
+- session/file/artifact trees
+
+Rules:
+
+- default width should be compact, usually 220-320px
+- collapsed width should be rail-like, usually 40-48px
+- the collapse/expand control lives in the pane header or the adjacent left rail
+- the collapsed pane becomes a narrow named bar, not empty space
+- the named bar uses a vertical mono label for the hidden entity set, for example `SQUAD`, `PROJECTS`, `BLUEPRINTS`, `TOOLS`, `SKILLS`, or `REMINDERS`
+- example: when the projects panel collapses, a slim bar remains after the left rail and says `PROJECTS`
+- example: when the blueprint ticket list collapses, a slim bar remains after the left rail and says `BLUEPRINTS`
+- collapsing the pane must give width back to the primary work surface
+- the left rail itself remains stable and does not become the entity list
+- entity rows use dense mono text, small icons, badges, and thin active-state borders
+- search/filter controls belong inside the open panel, not in the global header
+- do not replace the right context rail with this pane; the left panel selects entities, the right rail inspects context
+
 ### 3.3 Center Workspace
 
 The center area is the primary work surface.
@@ -177,7 +205,7 @@ Style:
 
 ### 4.1 Overall Tone
 
-Sanctum should combine:
+Forge should combine:
 
 - Quorum’s operational density
 - Olympus’s modular control-surface structure
@@ -188,8 +216,8 @@ Sanctum should combine:
 Recommended direction:
 
 - section headers: Orbitron-style, uppercase, letter-spaced
-- body text: Inter-style readable sans
-- numeric data and technical labels: JetBrains/Share Tech Mono-style mono
+- body text: Rajdhani-style readable sans
+- numeric data and technical labels: Share Tech Mono-style mono
 - labels: compact, deliberate, not decorative
 
 Typography should support:
@@ -198,12 +226,26 @@ Typography should support:
 - dense tables and metadata
 - clear hierarchy between entity name, status, and detail
 
+Sanctum-matching type rules:
+
+- base text size: `13px`
+- body family: `Rajdhani`, then system sans fallbacks
+- heading family: `Orbitron`, then `Rajdhani`
+- mono family: `Share Tech Mono`
+- body text color: `#f0f4f8`
+- muted text color: `#a0aec0`
+- section/page headers use cyan `#00e5ff` when they label an operational surface
+- page and section headers use Sanctum's compact `13px` root, uppercase labels, and letter-spaced Orbitron/Rajdhani hierarchy
+- top app title stays smaller, around `14px`, uppercase, and cyan
+- entity rows and technical labels generally sit at `10px` to `12px`
+
 ### 4.3 Color
 
-Use the Sanctum palette from Quorum/Olympus:
+Use the Forge palette from Sanctum:
 
-- background: `#080b12`
-- cards/panels: `#0d1220`
+- background: `#06090f`
+- shell/sidebar panels: `#0b0f1a`
+- cards/panels: transparent for standard panels, `#0b0f1a` for modal/toast cards
 - secondary surfaces: `#0f1929`
 - muted surfaces: `#111a2a`
 - primary: `#00e5ff`
@@ -211,8 +253,10 @@ Use the Sanctum palette from Quorum/Olympus:
 - success: `#00ff88`
 - warning: `#ffe600`
 - destructive: `#ff2244`
-- muted text: `#5a7a9a`
-- borders: `rgba(0, 229, 255, 0.12)`
+- foreground text: `#f0f4f8`
+- muted text: `#a0aec0`
+- default borders: `rgba(0, 229, 255, 0.15)`
+- strong card/toast borders: `rgba(0, 229, 255, 0.2)`
 
 Rules:
 
@@ -225,11 +269,12 @@ Rules:
 
 Use layered surfaces rather than flat panels:
 
-- background
-- panel
-- inset
-- active surface
-- overlay
+- app background: `#06090f`
+- shell panel: `#0b0f1a`
+- card/panel: transparent with thin cyan border
+- inset/secondary: `#0f1929`
+- muted/active surface: `#111a2a`
+- overlay: `rgba(6, 9, 15, 0.72)`
 
 Each surface should be distinguishable without heavy borders.
 Borders should stay thin and subtle, with the primary differentiation coming from surface tone rather than shadow-heavy depth.
@@ -266,8 +311,10 @@ Cards should be:
 - structured
 - information-dense
 - easy to scan in grid or list form
-- thin bordered
-- low radius
+- transparent by default for workspace panels
+- `#0b0f1a` for modal/toast cards
+- thin bordered with cyan at `rgba(0, 229, 255, 0.15)`, using `rgba(0, 229, 255, 0.2)` for stronger modal/toast cards
+- square in shell surfaces, with `0.125rem` only for modal/toast cards
 - minimal shadow
 
 Use cards for:
@@ -355,13 +402,13 @@ The header should show only the identity lockup by default.
 
 Good examples:
 
-- `[icon] Sanctum`
-- `[icon] Sanctum · Workspace`
+- `[icon] Forge`
+- `[icon] Forge · Workspace`
 
 Preferred structure:
 
 - icon first
-- `Sanctum` title immediately beside the icon
+- `Forge` title immediately beside the icon
 - context only when it is genuinely useful
 
 ### 7.2 Left Bar
@@ -409,7 +456,7 @@ The bar should feel like a dense status strip:
 
 ## 8. Content Density Rules
 
-Sanctum should favor dense, readable layouts.
+Forge should favor dense, readable layouts.
 
 Rules:
 
@@ -472,9 +519,9 @@ Avoid:
 - neon flicker effects
 - exaggerated particle/glow systems
 
-## 11. Sanctum-Specific Product Framing
+## 11. Forge-Specific Product Framing
 
-Sanctum is not a chat-first app.
+Forge is not a chat-first app.
 
 It should feel like:
 
@@ -513,9 +560,9 @@ The styling should remain consistent with the existing Savant desktop family:
 - Make server truth and local state visually distinct when needed.
 - Surface local install/config status in the chrome, not buried in settings only.
 
-## 13. What Sanctum Should Not Look Like
+## 13. What Forge Should Not Look Like
 
-Sanctum should not look like:
+Forge should not look like:
 
 - a generic admin dashboard
 - a chat app with a side panel
@@ -535,7 +582,7 @@ Use Quorum and Olympus as the structural reference for:
 - status feedback
 - compact system indicators
 
-Use Sanctum’s own roadmap and domain model for:
+Use Forge’s own roadmap and domain model for:
 
 - session/workspace framing
 - local setup/install surfaces
@@ -544,7 +591,7 @@ Use Sanctum’s own roadmap and domain model for:
 
 ## 15. Design Checklist
 
-Before shipping a Sanctum screen, verify:
+Before shipping a Forge screen, verify:
 
 - the active workspace/session is visible
 - the current surface is obvious
@@ -562,11 +609,11 @@ Use this as the baseline desktop layout:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────────┐
-│ [icon] Sanctum                                                                               │
+│ [icon] Forge                                                                               │
 ├───────────────┬──────────────────────────────────────────────────────────────┬───────────────┤
 │               │                                                              │               │
 │  W            │  WORKSPACE / SESSION / TASK / REMINDER / CONFIG CONTENT      │   CONTEXT     │
-│  S            │                                                              │   RA IL       │
+│  S            │                                                              │   RAIL        │
 │  T            │  primary view with lists, tables, details, and editors       │  stats        │
 │  R            │                                                              │  notes        │
 │               │                                                              │  files        │
@@ -586,7 +633,7 @@ The header should read like a control strip, not a hero banner:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────────┐
-│ [icon] Sanctum                                                                                │
+│ [icon] Forge                                                                                │
 └──────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -777,7 +824,7 @@ Modals should be narrow and purposeful:
 
 ### 16.12 What Good Looks Like
 
-Sanctum feels right when:
+Forge feels right when:
 
 - the shell is always visible
 - the active workspace/session is never ambiguous
@@ -789,12 +836,12 @@ Sanctum feels right when:
 local DB:
 - should always have a local DB
 - should store login info
-- sql lite under ~/.savant/{{appneme}}.db
+- SQLite under `~/.savant/{{appname}}.db`
 
 Login:
 - should be a modal 
 - should have api key 
-- once loged in should be stored in local storage db
+- once logged in should be stored in the local state database
 - once logged in logout should be in left rail bottom section bottom most icon
 - we only have X and ✅ icon 
 

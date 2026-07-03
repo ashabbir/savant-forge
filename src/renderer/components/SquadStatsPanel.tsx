@@ -26,8 +26,8 @@ export function SquadStatsPanel({ history, latest }: SquadStatsPanelProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, overflowY: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
         <div>
-          <span style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
-            // SQUAD STATS
+          <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
+            SQUAD STATS
           </span>
           <h2 style={{ margin: '4px 0 0', fontSize: '18px', color: 'var(--cp-cyan)', fontFamily: "'Orbitron', sans-serif" }}>
             Delivery, velocity, carryover, capacity
@@ -145,7 +145,7 @@ export function SquadStatsPanel({ history, latest }: SquadStatsPanelProps) {
 function Panel({ title, icon: Icon, children }: { title: string; icon: typeof BarChart3; children: ReactNode }) {
   return (
     <section style={{ border: '1px solid var(--cp-border)', background: 'var(--cp-bg-2)', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.08em' }}>
         <Icon size={13} />
         {title}
       </div>

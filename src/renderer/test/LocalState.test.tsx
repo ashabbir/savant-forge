@@ -6,8 +6,11 @@ import {
   fetchJiraTickets,
   updateTicketLocal,
   createTicketLocal,
+  deleteTicketLocal,
   triggerSync,
   getLocalPRDs,
+  getFeatureRequests,
+  saveFeatureRequest,
   saveLocalPRD,
   pushToConfluence,
   getSprintPlans,
@@ -52,13 +55,18 @@ describe('localState service', () => {
         buffer_threshold: 0.7,
         theme: 'dark',
         current_sprint_id: '',
-        company_holidays_by_region: {}
+        company_holidays_by_region: {
+          NY: [],
+          lisbon: []
+        }
       }
       saveForgeConfig(config)
 
       const result = await getForgeConfig()
       expect(result).toEqual({
         ...config,
+        current_project_id: '',
+        workdays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
         athena_provider: 'codex',
         athena_model: 'gpt-5-codex'
       })
@@ -71,7 +79,10 @@ describe('localState service', () => {
         buffer_threshold: 0.9,
         theme: 'olympus',
         current_sprint_id: '',
-        company_holidays_by_region: {}
+        company_holidays_by_region: {
+          NY: [],
+          lisbon: []
+        }
       }
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: true,
@@ -81,6 +92,8 @@ describe('localState service', () => {
       const result = await getForgeConfig()
       expect(result).toEqual({
         ...configFromFile,
+        current_project_id: '',
+        workdays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
         athena_provider: 'codex',
         athena_model: 'gpt-5-codex'
       })
@@ -94,7 +107,8 @@ describe('localState service', () => {
       expect(result.buffer_threshold).toBe(0.8)
       expect(result.athena_provider).toBe('codex')
       expect(result.athena_model).toBe('gpt-5-codex')
-      expect(result.company_holidays_by_region).toEqual({})
+      expect(result.company_holidays_by_region?.NY).toBeDefined()
+      expect(result.company_holidays_by_region?.lisbon).toBeDefined()
     })
   })
 
@@ -177,6 +191,24 @@ describe('localState service', () => {
       const queue = JSON.parse(localStorage.getItem('savant_forge_sync_queue') || '[]')
       expect(queue.length).toBe(1)
       expect(queue[0].action).toBe('CREATE_TICKET')
+    })
+
+    it('deletes unassigned ticket locally and queues delete mutation', async () => {
+      localStorage.setItem('savant_forge_tickets', JSON.stringify([
+        { ticket_id: 't-1', workspace_id: 'w-1', ticket_key: 'K-1', title: 'Initial', status: 'todo', priority: 'medium', assignee: '', reporter: 'user', story_points: 5 },
+        { ticket_id: 't-2', workspace_id: 'w-1', ticket_key: 'K-2', title: 'Assigned', status: 'todo', priority: 'medium', assignee: 'dev-1', reporter: 'user', story_points: 5 }
+      ]))
+
+      setStoredApiKey('sk-valid')
+      vi.mocked(fetch).mockResolvedValue({ ok: true } as Response)
+
+      await deleteTicketLocal('http://s', 't-1')
+
+      const cached = JSON.parse(localStorage.getItem('savant_forge_tickets') || '[]')
+      expect(cached.map((ticket: JiraTicket) => ticket.ticket_id)).toEqual(['t-2'])
+
+      const queue = JSON.parse(localStorage.getItem('savant_forge_sync_queue') || '[]')
+      expect(queue.length).toBe(0)
     })
   })
 
@@ -301,6 +333,90 @@ describe('localState service', () => {
     it('returns empty array if JSON parse throws an error', () => {
       localStorage.setItem('savant_forge_prds', '{invalid-json')
       expect(getLocalPRDs()).toEqual([])
+    })
+
+    it('saves and reads PRDs with squadId link correctly', () => {
+      const doc: PRDDocument = {
+        id: 'prd-linked',
+        title: 'Title',
+        content: 'Content',
+        status: 'draft',
+        lastUpdated: 'now',
+        squadId: 'squad-alpha'
+      }
+
+      saveLocalPRD(doc)
+      const prds = getLocalPRDs()
+      expect(prds).toContainEqual(doc)
+      expect(prds.find(p => p.id === 'prd-linked')?.squadId).toBe('squad-alpha')
+    })
+  })
+
+  describe('JiraTicket PRD linkage', () => {
+    it('saves and triggers update with prd_id correctly', async () => {
+      const ticket: JiraTicket = {
+        ticket_id: 't-prd-link',
+        workspace_id: 'w-1',
+        ticket_key: 'J-200',
+        title: 'Title',
+        status: 'todo',
+        priority: 'medium',
+        assignee: 'dev-1',
+        reporter: 'operator',
+        story_points: 3,
+        prd_id: 'prd-123'
+      }
+
+      localStorage.setItem('savant_forge_tickets', JSON.stringify([ticket]))
+      
+      const updatedTicket = { ...ticket, prd_id: 'prd-456' }
+      await updateTicketLocal('http://s', updatedTicket)
+
+      const cachedQueue = JSON.parse(localStorage.getItem('savant_forge_sync_queue') || '[]')
+      expect(cachedQueue.length).toBe(1)
+      expect(cachedQueue[0].payload.prd_id).toBe('prd-456')
+    })
+  })
+
+  describe('FeatureRequest PRD linkage', () => {
+    it('normalizes legacy prd_id into prd_ids while preserving the first link', () => {
+      localStorage.setItem(
+        'savant_forge_features',
+        JSON.stringify([
+          {
+            id: 'feature-1',
+            project_id: 'project-1',
+            title: 'Feature',
+            description: '',
+            status: 'draft',
+            prd_id: 'prd-a',
+            created_at: 'now',
+            updated_at: 'later'
+          }
+        ])
+      )
+
+      const features = getFeatureRequests()
+      expect(features[0].prd_ids).toEqual(['prd-a'])
+      expect(features[0].prd_id).toBe('prd-a')
+    })
+
+    it('preserves multiple PRD ids when saved', () => {
+      const feature = {
+        id: 'feature-2',
+        project_id: 'project-1',
+        title: 'Feature',
+        description: '',
+        status: 'draft' as const,
+        prd_ids: ['prd-a', 'prd-b'],
+        created_at: 'now',
+        updated_at: 'later'
+      }
+
+      saveFeatureRequest(feature)
+      const stored = getFeatureRequests().find((item) => item.id === 'feature-2')
+      expect(stored?.prd_ids).toEqual(['prd-a', 'prd-b'])
+      expect(stored?.prd_id).toBe('prd-a')
     })
   })
 })

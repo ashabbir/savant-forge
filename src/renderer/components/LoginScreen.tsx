@@ -53,8 +53,8 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
         {/* Modal Body */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--cp-cyan)', fontSize: '11px' }}>
-              // Savant Authentication Portal
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)', fontSize: '11px' }}>
+              Savant Authentication Portal
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

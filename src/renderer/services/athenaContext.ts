@@ -43,6 +43,30 @@ export async function fetchAthenaMcpTools(baseUrl: string, apiKey: string) {
   }
 }
 
+export async function resolveAthenaPersona(
+  baseUrl: string,
+  personaId: string,
+  tags: string[] = []
+): Promise<string> {
+  try {
+    const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/api/abilities/resolve`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        persona: personaId,
+        tags: tags,
+      }),
+    });
+    if (!res.ok) return "";
+    const data = await res.json();
+    return data.prompt || data.persona || "";
+  } catch {
+    return "";
+  }
+}
+
 export function formatAthenaContextHits(hits: AthenaContextHit[]) {
   void hits;
   return "Codebase context is disabled for Athena.";

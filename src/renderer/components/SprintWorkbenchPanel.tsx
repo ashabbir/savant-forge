@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { Activity, AlertTriangle, BarChart3, CalendarDays, CheckCircle2, Clock3, FileText, Plus, Users, Zap } from 'lucide-react'
+import { Activity, AlertTriangle, BarChart3, CalendarDays, CheckCircle2, Clock3, FileText, Plus, Users, Zap, Trash2 } from 'lucide-react'
 import type {
   AvailabilityEvent,
   JiraTicket,
@@ -29,6 +29,7 @@ type SprintWorkbenchPanelProps = {
     end_date: string
     notes?: string
   }) => void
+  onUpdateTicket?: (ticketId: string, fields: Partial<JiraTicket>) => void
 }
 
 export function SprintWorkbenchPanel({
@@ -43,7 +44,8 @@ export function SprintWorkbenchPanel({
   onCreateSprint,
   onSetCurrentSprint,
   onCompleteSprint,
-  onAddAvailabilityEvent
+  onAddAvailabilityEvent,
+  onUpdateTicket
 }: SprintWorkbenchPanelProps) {
   const [sprintName, setSprintName] = useState(currentSprint?.name || '')
   const [sprintStart, setSprintStart] = useState(currentSprint?.start_date || todayString())
@@ -61,6 +63,16 @@ export function SprintWorkbenchPanel({
     () => sprintPlans.filter((plan) => plan.id !== current?.id).sort((a, b) => a.start_date.localeCompare(b.start_date)),
     [current?.id, sprintPlans]
   )
+
+  const sprintTickets = useMemo(() => {
+    if (!current) return []
+    return tickets.filter((ticket) => ticket.sprint_id === current.id)
+  }, [current, tickets])
+
+  const backlogTickets = useMemo(() => {
+    if (!current) return []
+    return tickets.filter((ticket) => ticket.sprint_id !== current.id)
+  }, [current, tickets])
 
   const sprintWorkload = current
     ? tickets.filter((ticket) => ticket.status !== 'done').reduce((acc, ticket) => acc + ticket.story_points, 0)
@@ -94,17 +106,17 @@ export function SprintWorkbenchPanel({
 
   const headerDetails = {
     current: {
-      title: '// CURRENT SPRINT',
+      title: 'CURRENT SPRINT',
       subtitle: 'Active sprint control, goals checklist, and squad availability',
       icon: Zap
     },
     future: {
-      title: '// FUTURE PLANNING',
+      title: 'FUTURE PLANNING',
       subtitle: 'Create upcoming sprints, define goals, and manage the sprint queue',
       icon: CalendarDays
     },
     past: {
-      title: '// PAST & PERFORMANCE',
+      title: 'PAST & PERFORMANCE',
       subtitle: 'Squad delivery statistics, historical snapshot trends, and metrics',
       icon: BarChart3
     }
@@ -166,61 +178,151 @@ export function SprintWorkbenchPanel({
             </div>
           </Band>
 
-          <Band title="Squad Availability & Leave" icon={Users}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 0.8fr)', gap: '12px' }}>
-              <section style={sectionStyle}>
-                <Subhead title="Add Availability Event" />
-                <div style={{ display: 'grid', gap: '8px', marginTop: '6px' }}>
-                  <Field label="Developer" value={availabilityDeveloper} onChange={setAvailabilityDeveloper} asSelect options={activeSquad?.developers.map((dev) => ({ value: dev.id, label: dev.name })) || []} />
-                  <Field label="Type" value={availabilityType} onChange={(value) => setAvailabilityType(value as AvailabilityEvent['type'])} asSelect options={[
-                    { value: 'vacation', label: 'Vacation' },
-                    { value: 'sick', label: 'Sick' },
-                    { value: 'pto', label: 'PTO' }
-                  ]} />
-                  <Field label="Title" value={availabilityTitle} onChange={setAvailabilityTitle} />
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
-                    <Field label="Start" value={availabilityStart} onChange={setAvailabilityStart} type="date" />
-                    <Field label="End" value={availabilityEnd} onChange={setAvailabilityEnd} type="date" />
-                  </div>
-                  <Field label="Notes" value={availabilityNotes} onChange={setAvailabilityNotes} placeholder="Optional note" />
-                  <button
-                    onClick={() => {
-                      if (!availabilityDeveloper || !availabilityTitle.trim()) return
-                      onAddAvailabilityEvent({
-                        developer_id: availabilityDeveloper,
-                        type: availabilityType,
-                        title: availabilityTitle.trim(),
-                        start_date: availabilityStart,
-                        end_date: availabilityEnd,
-                        notes: availabilityNotes.trim() || undefined
-                      })
-                      setAvailabilityNotes('')
-                    }}
-                    style={primaryButtonStyle}
-                  >
-                    <Plus size={14} />
-                    Add event
-                  </button>
+          {current && (
+            <Band title="Sprint Scope & Tickets" icon={Zap}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {sprintTickets.length === 0 ? (
+                    <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', fontStyle: 'italic', padding: '4px 0' }}>
+                      No tickets attached to this sprint yet.
+                    </div>
+                  ) : (
+                    sprintTickets.map((ticket) => (
+                      <div
+                        key={ticket.ticket_id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          background: 'var(--cp-bg-3)',
+                          border: '1px solid var(--cp-border)',
+                          padding: '6px 8px',
+                          fontSize: '11px',
+                          gap: '8px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flex: 1 }}>
+                          <span style={{ color: 'var(--section-label)', fontWeight: 'bold', fontFamily: "'Share Tech Mono', monospace" }}>
+                            {ticket.ticket_key}
+                          </span>
+                          <span style={{ color: 'var(--foreground)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1, minWidth: 0, textAlign: 'left' }} title={ticket.title}>
+                            {ticket.title.replace(/\[SP-\d+\]\s*/i, '')}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                          <select
+                            value={ticket.assignee || ''}
+                            onChange={(e) => onUpdateTicket && onUpdateTicket(ticket.ticket_id, { assignee: e.target.value || undefined })}
+                            style={{
+                              background: 'var(--cp-bg-3)',
+                              border: '1px solid var(--cp-border)',
+                              color: 'var(--foreground)',
+                              fontSize: '10px',
+                              padding: '2px 4px',
+                              outline: 'none',
+                              fontFamily: "'Share Tech Mono', monospace",
+                              cursor: 'pointer',
+                              maxWidth: '100px'
+                            }}
+                          >
+                            <option value="">Unassigned</option>
+                            {activeSquad?.developers.map(dev => (
+                              <option key={dev.id} value={dev.id}>
+                                {dev.name}
+                              </option>
+                            ))}
+                          </select>
+                          <span style={{ color: 'var(--cp-green)', fontWeight: 'bold', fontFamily: "'Share Tech Mono', monospace" }}>
+                            {ticket.story_points} SP
+                          </span>
+                          <button
+                            onClick={() => onUpdateTicket && onUpdateTicket(ticket.ticket_id, { sprint_id: undefined })}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--cp-magenta)',
+                              cursor: 'pointer',
+                              padding: '2px',
+                              display: 'grid',
+                              placeItems: 'center'
+                            }}
+                            title="Remove from Sprint"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
-              </section>
 
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const ticketId = e.target.value
+                    if (ticketId && onUpdateTicket) {
+                      onUpdateTicket(ticketId, { sprint_id: current.id })
+                    }
+                  }}
+                  style={{
+                    background: 'var(--cp-bg-3)',
+                    border: '1px dashed var(--cp-cyan)',
+                    color: 'var(--cp-cyan)',
+                    fontSize: '11px',
+                    padding: '6px',
+                    outline: 'none',
+                    fontFamily: "'Share Tech Mono', monospace",
+                    cursor: 'pointer',
+                    width: '100%'
+                  }}
+                >
+                  <option value="">+ ATTACH TICKET TO SPRINT...</option>
+                  {backlogTickets.map((ticket) => (
+                    <option key={ticket.ticket_id} value={ticket.ticket_id}>
+                      {ticket.ticket_key} - {ticket.title.substring(0, 30)}...
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </Band>
+          )}
+
+          <Band title="Squad Availability & Leave" icon={Users}>
+            <div style={{ display: 'grid', gap: '12px' }}>
               <section style={sectionStyle}>
-                <Subhead title="Scheduled Events" />
-                <div style={{ display: 'grid', gap: '8px', marginTop: '6px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '8px' }}>
                   <MiniStat label="Developers" value={`${activeSquad?.developers.length || 0}`} />
                   <MiniStat label="Events" value={`${availabilityEvents.length}`} />
                   <MiniStat label="Scheduled PTO / Sick" value={`${availabilityEvents.filter((event) => event.type !== 'pto').length}`} />
-                  <div style={{ marginTop: '8px', display: 'grid', gap: '8px' }}>
-                    {availabilityEvents.slice(-6).reverse().map((event) => (
-                      <div key={event.id} style={eventRowStyle}>
-                        <div>
-                          <div style={{ color: 'var(--foreground)', fontWeight: 'bold' }}>{event.title}</div>
-                          <div style={subtleLabelStyle}>{event.start_date} → {event.end_date}</div>
+                </div>
+                
+                <Subhead title="Current Scheduled Leave & PTO" />
+                <div style={{ marginTop: '8px', display: 'grid', gap: '8px', maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {availabilityEvents.length > 0 ? (
+                    availabilityEvents.slice().reverse().map((event) => {
+                      const devName = activeSquad?.developers.find((d) => d.id === event.developer_id)?.name || 'Unknown'
+                      return (
+                        <div key={event.id} style={eventRowStyle}>
+                          <div>
+                            <div style={{ color: 'var(--foreground)', fontWeight: 'bold' }}>
+                              {event.title} <span style={{ color: 'var(--section-label)', fontSize: '10px', fontFamily: "'Share Tech Mono', monospace" }}>{devName}</span>
+                            </div>
+                            <div style={subtleLabelStyle}>{event.start_date} → {event.end_date}</div>
+                            {event.notes && (
+                              <div style={{ color: 'var(--muted-foreground)', fontSize: '10px', fontStyle: 'italic', marginTop: '2px' }}>
+                                Note: {event.notes}
+                              </div>
+                            )}
+                          </div>
+                          <Badge label={event.type.toUpperCase()} />
                         </div>
-                        <Badge label={event.type.toUpperCase()} />
-                      </div>
-                    ))}
-                  </div>
+                      )
+                    })
+                  ) : (
+                    <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', padding: '12px 0', textAlign: 'center' }}>
+                      No active time off or leaves scheduled for this squad.
+                    </div>
+                  )}
                 </div>
               </section>
             </div>
@@ -269,21 +371,96 @@ export function SprintWorkbenchPanel({
               <section style={sectionStyle}>
                 <Subhead title="Sprint Queue" />
                 <div style={{ display: 'grid', gap: '8px', marginTop: '6px' }}>
-                  {upcoming.length ? upcoming.map((plan) => (
-                    <div key={plan.id} style={eventRowStyle}>
-                      <div>
-                        <div style={{ color: 'var(--foreground)', fontWeight: 'bold' }}>{plan.name}</div>
-                        <div style={subtleLabelStyle}>{plan.start_date} → {plan.end_date}</div>
-                        <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--muted-foreground)' }}>{plan.goals.length} goals</div>
+                  {upcoming.length ? upcoming.map((plan) => {
+                    const planTickets = tickets.filter(t => t.sprint_id === plan.id)
+                    return (
+                      <div key={plan.id} style={{ ...eventRowStyle, flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ color: 'var(--foreground)', fontWeight: 'bold' }}>{plan.name}</div>
+                            <div style={subtleLabelStyle}>{plan.start_date} → {plan.end_date}</div>
+                            <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--muted-foreground)' }}>{plan.goals.length} goals</div>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                            <Badge label={plan.status.toUpperCase()} />
+                            <button onClick={() => onSetCurrentSprint(plan.id)} style={secondaryButtonStyle}>
+                              Set current
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tickets linkage section */}
+                        <div style={{ borderTop: '1px solid var(--cp-border)', paddingTop: '6px', marginTop: '4px' }}>
+                          <div style={{ fontSize: '9px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>ATTACHED TICKETS ({planTickets.length})</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                            {planTickets.map(ticket => (
+                              <div key={ticket.ticket_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1, minWidth: 0, textAlign: 'left' }}>
+                                  <strong style={{ color: 'var(--cp-cyan)' }}>{ticket.ticket_key}</strong> {ticket.title.replace(/\[SP-\d+\]\s*/i, '')}
+                                </span>
+                                <select
+                                  value={ticket.assignee || ''}
+                                  onChange={(e) => onUpdateTicket && onUpdateTicket(ticket.ticket_id, { assignee: e.target.value || undefined })}
+                                  style={{
+                                    background: 'var(--cp-bg-3)',
+                                    border: '1px solid var(--cp-border)',
+                                    color: 'var(--foreground)',
+                                    fontSize: '9px',
+                                    padding: '1px 2px',
+                                    outline: 'none',
+                                    fontFamily: "'Share Tech Mono', monospace",
+                                    cursor: 'pointer',
+                                    maxWidth: '85px'
+                                  }}
+                                >
+                                  <option value="">Unassigned</option>
+                                  {activeSquad?.developers.map(dev => (
+                                    <option key={dev.id} value={dev.id}>
+                                      {dev.name.split(' ')[0]}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={() => onUpdateTicket && onUpdateTicket(ticket.ticket_id, { sprint_id: undefined })}
+                                  style={{ background: 'none', border: 'none', color: 'var(--cp-magenta)', cursor: 'pointer', padding: '0 2px' }}
+                                >
+                                  [x]
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const ticketId = e.target.value
+                              if (ticketId && onUpdateTicket) {
+                                onUpdateTicket(ticketId, { sprint_id: plan.id })
+                              }
+                            }}
+                            style={{
+                              background: 'var(--cp-bg-3)',
+                              border: '1px dashed var(--cp-cyan)',
+                              color: 'var(--cp-cyan)',
+                              fontSize: '9px',
+                              padding: '2px',
+                              marginTop: '4px',
+                              outline: 'none',
+                              width: '100%',
+                              fontFamily: "'Share Tech Mono', monospace",
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <option value="">+ ATTACH TICKET...</option>
+                            {tickets.filter(t => t.sprint_id !== plan.id).map(ticket => (
+                              <option key={ticket.ticket_id} value={ticket.ticket_id}>
+                                {ticket.ticket_key} - {ticket.title.substring(0, 20)}...
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
-                        <Badge label={plan.status.toUpperCase()} />
-                        <button onClick={() => onSetCurrentSprint(plan.id)} style={secondaryButtonStyle}>
-                          Set current
-                        </button>
-                      </div>
-                    </div>
-                  )) : <EmptyState text="No future sprint plans yet." />}
+                    )
+                  }) : <EmptyState text="No future sprint plans yet." />}
                 </div>
               </section>
             </div>
@@ -397,7 +574,7 @@ function Band({ title, icon: Icon, children }: { title: string; icon: typeof Act
 
 function Subhead({ title }: { title: string }) {
   return (
-    <div style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+    <div style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.08em' }}>
       {title}
     </div>
   )
@@ -449,7 +626,14 @@ function Field({
           ))}
         </select>
       ) : (
-        <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} type={type} style={inputStyle} />
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onClick={(event) => { if (type === 'date') { try { event.currentTarget.showPicker(); } catch {} } }}
+          placeholder={placeholder}
+          type={type}
+          style={inputStyle}
+        />
       )}
     </label>
   )

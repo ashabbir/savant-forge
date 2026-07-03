@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Frown, Meh, Plus, Smile, Zap, CalendarDays, CheckCircle2, Trash2, Edit, Check, X, AlertTriangle, Play, ChevronDown, ChevronUp } from 'lucide-react'
-import { Squad, Developer, JiraTicket, SprintPlan, SprintGoal } from '../services/localState'
+import { Squad, Developer, JiraTicket, SprintPlan, SprintGoal, PRDDocument } from '../services/localState'
 import { SpecialtyTagPills } from './DeveloperSpecialties'
 
 interface SquadCockpitProps {
@@ -40,6 +40,10 @@ interface SquadCockpitProps {
   onDeleteSprint: (sprintId: string) => void
   onUpdateSquadName: (squadId: string, newName: string) => void
   onCreateSquad: (name: string) => void
+
+  // PRD Support
+  prds?: PRDDocument[]
+  onSelectPrd?: (prdId: string) => void
 }
 
 export function SquadCockpit({
@@ -63,7 +67,9 @@ export function SquadCockpit({
   onUpdateSprint,
   onDeleteSprint,
   onUpdateSquadName,
-  onCreateSquad
+  onCreateSquad,
+  prds = [],
+  onSelectPrd
 }: SquadCockpitProps) {
   // Inline rename squad name state
   const [isRenamingSquad, setIsRenamingSquad] = useState(false)
@@ -113,6 +119,12 @@ export function SquadCockpit({
     return (sprintPlans || []).filter(p => p.squad_id === activeSquad.id)
   }, [activeSquad, sprintPlans])
 
+  // Filter PRDs belonging to the active squad
+  const squadPrds = useMemo(() => {
+    if (!activeSquad || !prds) return []
+    return prds.filter(p => p.squadId === activeSquad.id)
+  }, [activeSquad, prds])
+
   const activeSprint = useMemo(() => {
     return squadSprints.find(p => p.status === 'current') || null
   }, [squadSprints])
@@ -148,8 +160,10 @@ export function SquadCockpit({
   }
 
   const handleSaveRenameSquad = () => {
-    if (activeSquad && renameSquadValue.trim()) {
-      onUpdateSquadName(activeSquad.id, renameSquadValue.trim())
+    if (activeSquad) {
+      if (renameSquadValue.trim()) {
+        onUpdateSquadName(activeSquad.id, renameSquadValue.trim())
+      }
       setIsRenamingSquad(false)
     }
   }
@@ -173,6 +187,17 @@ export function SquadCockpit({
         end_date: editSprintCalculatedEnd
       })
       setIsEditingActiveSprint(false)
+    }
+  }
+
+  const handleAutoSaveActiveSprint = (nameVal: string, startVal: string, daysVal: number) => {
+    if (activeSprint && nameVal.trim()) {
+      const calculatedEnd = getEndDateFromWorkingDays(startVal, daysVal, squadWorkingDays)
+      onUpdateSprint(activeSprint.id, {
+        name: nameVal.trim(),
+        start_date: startVal,
+        end_date: calculatedEnd
+      })
     }
   }
 
@@ -233,106 +258,102 @@ export function SquadCockpit({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, overflowY: 'auto' }} data-testid="squad-cockpit-view">
-      {/* Squad Summary Cockpit Banner */}
-      <div 
-        className={`squad-header-banner ${squadCapacityStats.isOverload ? 'glowing-alert-red' : ''}`}
-        style={{
-          background: 'var(--cp-bg-2)',
-          border: squadCapacityStats.isOverload ? '1px solid var(--cp-magenta)' : '1px solid var(--cp-border)',
-          padding: '12px 16px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}
-      >
-        <div>
-          {isRenamingSquad ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                value={renameSquadValue}
-                onChange={e => setRenameSquadValue(e.target.value)}
-                style={{
-                  background: 'var(--cp-bg-3)',
-                  border: '1px solid var(--cp-cyan)',
-                  color: 'var(--foreground)',
-                  fontFamily: "'Share Tech Mono', monospace",
-                  fontSize: '14px',
-                  padding: '4px 8px',
-                  outline: 'none',
-                  width: '180px'
-                }}
-                autoFocus
-                onKeyDown={e => {
-                  if (e.key === 'Enter') handleSaveRenameSquad()
-                  else if (e.key === 'Escape') setIsRenamingSquad(false)
-                }}
-              />
-              <button 
-                onClick={handleSaveRenameSquad}
-                style={inlineButtonStyle('var(--cp-cyan)', 'rgba(0, 229, 255, 0.1)')}
-              >
-                SAVE
-              </button>
-              <button 
-                onClick={() => setIsRenamingSquad(false)}
-                style={inlineButtonStyle('var(--muted-foreground)', 'var(--cp-bg-3)')}
-              >
-                CANCEL
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--cp-cyan)', fontFamily: "'Orbitron', sans-serif" }}>
-                {activeSquad.name.toUpperCase()}
-              </h2>
-              <button
-                type="button"
-                onClick={handleStartRenameSquad}
-                title="Rename squad"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--muted-foreground)',
-                  cursor: 'pointer',
-                  fontSize: '10px',
-                  fontFamily: "'Share Tech Mono', monospace",
-                  textDecoration: 'underline',
-                  padding: '2px 4px',
-                  opacity: 0.7
-                }}
-                onMouseOver={e => (e.currentTarget.style.opacity = '1')}
-                onMouseOut={e => (e.currentTarget.style.opacity = '0.7')}
-              >
-                [RENAME]
-              </button>
-            </div>
-          )}
-          <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace", marginTop: '2px' }}>
-            Active 2-Week Sprint Cadence · 20% Buffer Protection Cap
-          </div>
-        </div>
 
-        <div style={{ display: 'flex', gap: '20px', fontFamily: "'Share Tech Mono', monospace", textAlign: 'right' }}>
+      {/* Squad Page Header — Sanctum-style hero-panel */}
+      <section className="hero-panel">
+        <div className="panel-head">
           <div>
-            <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', opacity: 0.5 }}>ASSIGNED WORKLOAD</div>
-            <div style={{ fontSize: '16px', fontWeight: 'bold', color: squadCapacityStats.isOverload ? 'var(--cp-magenta)' : 'var(--cp-green)' }} data-testid="assigned-workload-val">
-              {squadCapacityStats.assigned} SP
+            <div className="eyebrow">Squad</div>
+            <div className="workspace-header-title-row">
+              {isRenamingSquad ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <input
+                    value={renameSquadValue}
+                    onChange={e => setRenameSquadValue(e.target.value)}
+                    onBlur={handleSaveRenameSquad}
+                    style={{
+                      background: 'var(--cp-bg-3)',
+                      border: '1px solid var(--cp-cyan)',
+                      color: 'var(--foreground)',
+                      fontFamily: "'Share Tech Mono', monospace",
+                      fontSize: '18px',
+                      padding: '4px 8px',
+                      outline: 'none',
+                      width: '200px'
+                    }}
+                    autoFocus
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleSaveRenameSquad()
+                      else if (e.key === 'Escape') setIsRenamingSquad(false)
+                    }}
+                  />
+                  <span style={{ fontSize: '9px', color: 'var(--cp-green)', fontFamily: "'Share Tech Mono', monospace" }}>
+                    AUTO-SAVING
+                  </span>
+                  <button
+                    onMouseDown={e => {
+                      e.preventDefault()
+                      setIsRenamingSquad(false)
+                    }}
+                    style={inlineButtonStyle('var(--muted-foreground)', 'var(--cp-bg-3)')}
+                  >
+                    CANCEL
+                  </button>
+                </div>
+              ) : (
+                <h1
+                  className="page-title"
+                  style={{ color: 'var(--section-label)' }}
+                  onClick={handleStartRenameSquad}
+                  title="Click to rename squad"
+                >
+                  {activeSquad.name}
+                </h1>
+              )}
+              <div className="workspace-header-meta">
+                <span className={`workspace-header-pill workspace-header-pill-${squadCapacityStats.isOverload ? 'critical' : 'active'}`}>
+                  {squadCapacityStats.isOverload ? 'overload' : 'active'}
+                </span>
+                <span className="workspace-header-pill workspace-header-pill-medium">
+                  sprint cadence
+                </span>
+              </div>
             </div>
+            <p className="hero-copy">
+              {activeSquad.developers.length} developers · {squadCapacityStats.assigned} SP assigned · {squadCapacityStats.totalEffective.toFixed(0)} SP effective cap · {squadCapacityStats.totalRaw} SP raw capacity
+            </p>
           </div>
-          <div>
-            <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', opacity: 0.5 }}>EFFECTIVE CAP (80%)</div>
-            <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--cp-cyan)' }}>
-              {squadCapacityStats.totalEffective.toFixed(0)} SP
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', opacity: 0.5 }}>SQUAD RAW CAPACITY</div>
-            <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--foreground)' }}>
-              {squadCapacityStats.totalRaw} SP
-            </div>
+          <div className="panel-actions">
+            <button
+              type="button"
+              onClick={handleStartRenameSquad}
+              title="Rename squad"
+              style={{
+                background: 'none',
+                border: '1px solid var(--cp-border)',
+                color: 'var(--muted-foreground)',
+                cursor: 'pointer',
+                fontSize: '10px',
+                fontFamily: "'Share Tech Mono', monospace",
+                padding: '4px 8px',
+                opacity: 0.7
+              }}
+              onMouseOver={e => (e.currentTarget.style.opacity = '1')}
+              onMouseOut={e => (e.currentTarget.style.opacity = '0.7')}
+            >
+              [RENAME]
+            </button>
           </div>
         </div>
-      </div>
+        <div className="fact-strip">
+          <span className="fact-pill" data-testid="assigned-workload-val">{squadCapacityStats.assigned} SP assigned</span>
+          <span className="fact-pill">{squadCapacityStats.totalEffective.toFixed(0)} SP effective cap</span>
+          <span className="fact-pill">{squadCapacityStats.totalRaw} SP raw</span>
+          {squadCapacityStats.isOverload && (
+            <span className="fact-pill" style={{ borderColor: 'rgba(255,34,68,0.35)', color: '#ff2244' }}>⚠ overloaded</span>
+          )}
+        </div>
+      </section>
 
       {/* Main Responsive Cockpit Dashboard Layout */}
       <div className="cockpit-grid" style={{ display: 'grid', gap: '16px', alignItems: 'start' }}>
@@ -340,8 +361,8 @@ export function SquadCockpit({
         {/* LEFT COLUMN: Developer Capacity Slot Grid */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              // Person List ({activeSquad.developers.length})
+            <div style={{ fontSize: '11px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Person List ({activeSquad.developers.length})
             </div>
             <button
               type="button"
@@ -546,7 +567,7 @@ export function SquadCockpit({
             <div style={panelHeaderStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CalendarDays size={14} style={{ color: 'var(--cp-cyan)' }} />
-                <span>// ACTIVE SPRINT</span>
+                <span>ACTIVE SPRINT</span>
               </div>
               <div style={{
                 fontSize: '9px',
@@ -573,6 +594,10 @@ export function SquadCockpit({
                           <input 
                             value={editSprintName} 
                             onChange={e => setEditSprintName(e.target.value)} 
+                            onBlur={() => handleAutoSaveActiveSprint(editSprintName, editSprintStart, editSprintWorkingDays)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSaveActiveSprint()
+                            }}
                             style={inputStyle}
                           />
                         </label>
@@ -582,7 +607,10 @@ export function SquadCockpit({
                             <input 
                               type="date" 
                               value={editSprintStart} 
-                              onChange={e => setEditSprintStart(e.target.value)}
+                              onChange={e => {
+                                setEditSprintStart(e.target.value)
+                                handleAutoSaveActiveSprint(editSprintName, e.target.value, editSprintWorkingDays)
+                              }}
                               onClick={e => {
                                 try { e.currentTarget.showPicker() } catch(err) {}
                               }}
@@ -595,20 +623,25 @@ export function SquadCockpit({
                               type="number"
                               min="1"
                               value={editSprintWorkingDays} 
-                              onChange={e => setEditSprintWorkingDays(parseInt(e.target.value) || 1)} 
+                              onChange={e => {
+                                const val = parseInt(e.target.value) || 1
+                                setEditSprintWorkingDays(val)
+                                handleAutoSaveActiveSprint(editSprintName, editSprintStart, val)
+                              }}
+                              onBlur={() => handleAutoSaveActiveSprint(editSprintName, editSprintStart, editSprintWorkingDays)}
                               style={inputStyle}
                             />
                           </label>
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", marginTop: '4px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", marginTop: '4px' }}>
                           Auto End Date: {editSprintCalculatedEnd}
                         </div>
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                          <button onClick={handleSaveActiveSprint} style={primaryButtonStyle}>
-                            Save
-                          </button>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                          <span style={{ fontSize: '9px', color: 'var(--cp-green)', fontFamily: "'Share Tech Mono', monospace" }}>
+                            // AUTO-SAVE ACTIVE
+                          </span>
                           <button onClick={() => setIsEditingActiveSprint(false)} style={secondaryButtonStyle}>
-                            Cancel
+                            Close
                           </button>
                         </div>
                       </div>
@@ -618,7 +651,7 @@ export function SquadCockpit({
                           <div style={{ fontSize: '15px', fontWeight: 'bold', color: 'var(--foreground)' }}>
                             {activeSprint.name}
                           </div>
-                          <div style={{ fontSize: '11px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", marginTop: '2px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", marginTop: '2px' }}>
                             Start: {activeSprint.start_date} · End: {activeSprint.end_date}
                           </div>
                         </div>
@@ -760,6 +793,65 @@ export function SquadCockpit({
             </div>
           </div>
 
+          {/* Card: Attached PRDs */}
+          <div style={panelCardStyle}>
+            <div style={panelHeaderStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Zap size={14} style={{ color: 'var(--cp-cyan)' }} />
+                <span>ATTACHED PRDS</span>
+              </div>
+              <div style={{
+                fontSize: '9px',
+                background: 'rgba(0, 229, 255, 0.08)',
+                color: 'var(--cp-cyan)',
+                border: '1px solid var(--cp-border)',
+                padding: '2px 6px',
+                fontWeight: 'bold',
+                fontFamily: "'Share Tech Mono', monospace"
+              }}>
+                {squadPrds.length} LINKED
+              </div>
+            </div>
+            <div style={panelBodyStyle}>
+              {squadPrds.length === 0 ? (
+                <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', fontStyle: 'italic', padding: '4px 0', fontFamily: "'Share Tech Mono', monospace" }}>
+                  No PRDs linked to this squad. Link a PRD from the PRD Document Inspector.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {squadPrds.map(prd => (
+                    <div 
+                      key={prd.id}
+                      onClick={() => onSelectPrd && onSelectPrd(prd.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'var(--cp-bg-3)',
+                        border: '1px solid var(--cp-border)',
+                        padding: '8px 10px',
+                        cursor: 'pointer',
+                        transition: 'border 0.2s',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--cp-cyan)'}
+                      onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--cp-border)'}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--foreground)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', width: '180px', textAlign: 'left' }}>
+                          {prd.title}
+                        </span>
+                        <span style={{ fontSize: '10px', color: 'var(--muted-foreground)', textAlign: 'left' }}>
+                          Status: <span style={{ color: prd.status === 'synced' ? 'var(--cp-green)' : prd.status === 'ready' ? 'var(--cp-cyan)' : 'var(--foreground)' }}>{prd.status.toUpperCase()}</span>
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '9px', fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)' }}>VIEW →</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Card 2: Sprint Planner Console */}
           <div style={panelCardStyle}>
             <div 
@@ -768,7 +860,7 @@ export function SquadCockpit({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CalendarDays size={14} style={{ color: 'var(--cp-cyan)' }} />
-                <span>// FUTURE SPRINTS & PLANNING</span>
+                <span>FUTURE SPRINTS & PLANNING</span>
               </div>
               <div>
                 {isSprintPanelOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -815,7 +907,7 @@ export function SquadCockpit({
                         />
                       </label>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
+                    <div style={{ fontSize: '11px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
                       Calculated End Date: {newSprintCalculatedEnd}
                     </div>
                     <label style={{ display: 'grid', gap: '2px' }}>
@@ -924,7 +1016,7 @@ export function SquadCockpit({
                                 
                                 {/* Inline Date Editor for Planned Sprint */}
                                 <div style={{ display: 'grid', gap: '6px', background: 'var(--cp-bg-0)', padding: '8px', border: '1px solid var(--cp-border)' }}>
-                                  <span style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase' }}>Edit Sprint Properties</span>
+                                  <span style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase' }}>Edit Sprint Properties</span>
                                   <label style={{ display: 'grid', gap: '2px' }}>
                                     <span style={fieldLabelStyle}>Sprint Name</span>
                                     <input 
@@ -966,7 +1058,7 @@ export function SquadCockpit({
                                       />
                                     </label>
                                   </div>
-                                  <div style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace" }}>
+                                  <div style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace" }}>
                                     Auto End Date: {plan.end_date}
                                   </div>
                                 </div>

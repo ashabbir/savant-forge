@@ -1,4 +1,4 @@
-export type AthenaContextKind = 'squad' | 'developer' | 'prd' | 'ticket' | 'blueprint' | 'global'
+export type AthenaContextKind = 'squad' | 'developer' | 'prd' | 'ticket' | 'blueprint' | 'global' | 'project' | 'feature'
 
 export type AthenaThreadMessage = {
   id: string
@@ -63,6 +63,19 @@ export function appendAthenaThreadMessage(threadId: string, message: AthenaThrea
     return {
       ...thread,
       messages: [...thread.messages, message],
+      lastUpdatedAt: new Date().toISOString()
+    }
+  })
+  saveAthenaThreads(next)
+  dispatchChange()
+}
+
+export function deleteAthenaThreadMessage(threadId: string, messageId: string) {
+  const next = loadAthenaThreads().map((thread) => {
+    if (thread.id !== threadId) return thread
+    return {
+      ...thread,
+      messages: thread.messages.filter((m) => m.id !== messageId),
       lastUpdatedAt: new Date().toISOString()
     }
   })

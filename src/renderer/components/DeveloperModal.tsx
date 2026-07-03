@@ -150,7 +150,7 @@ export function DeveloperModal({
           <div style={{ display: 'grid', gap: '12px' }}>
             <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '14px', display: 'grid', gap: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-                <div style={{ fontSize: '10px', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase' }}>
                   Specialties
                 </div>
                 <button

@@ -50,6 +50,7 @@ export interface JiraTicket {
   reporter: string
   story_points: number // defaults to 0 or parsed from ticket
   sprint_id?: string
+  prd_id?: string // Link to a PRD
 }
 
 export type WorkingDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
@@ -100,6 +101,22 @@ export interface ProjectEntity {
   start_date: string
   end_date: string
   epic_ticket_id?: string
+  squad_id?: string // which squad owns this project
+  feature_ids?: string[] // ordered list of feature IDs
+  functionalities?: string // markdown describing core functionalities
+  goals?: string // high-level project goals
+  created_at: string
+  updated_at: string
+}
+
+export interface FeatureRequest {
+  id: string
+  project_id: string
+  title: string
+  description: string // markdown content
+  status: 'draft' | 'final'
+  prd_id?: string // set when converted to a PRD
+  prd_ids?: string[] // ordered list of linked PRD IDs
   created_at: string
   updated_at: string
 }
@@ -118,6 +135,7 @@ const STORAGE_SQUAD_STATS_KEY = 'savant_forge_squad_stats'
 const STORAGE_AVAILABILITY_KEY = 'savant_forge_availability'
 const STORAGE_SPRINTS_KEY = 'savant_forge_sprints'
 const STORAGE_PROJECTS_KEY = 'savant_forge_projects'
+const STORAGE_FEATURES_KEY = 'savant_forge_features'
 
 const DEFAULT_WORKING_DAYS: WorkingDay[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
 
@@ -261,6 +279,12 @@ export function saveAvailabilityEvent(event: AvailabilityEvent) {
   const current = getAvailabilityEvents()
   const existing = current.find((item) => item.id === event.id)
   const next = existing ? current.map((item) => item.id === event.id ? event : item) : [...current, event]
+  localStorage.setItem(STORAGE_AVAILABILITY_KEY, JSON.stringify(next))
+}
+
+export function deleteAvailabilityEvent(id: string) {
+  const current = getAvailabilityEvents()
+  const next = current.filter((item) => item.id !== id)
   localStorage.setItem(STORAGE_AVAILABILITY_KEY, JSON.stringify(next))
 }
 
@@ -612,6 +636,10 @@ function normalizeProjectEntity(project: Partial<ProjectEntity>): ProjectEntity 
     start_date: project.start_date || new Date().toISOString().slice(0, 10),
     end_date: project.end_date || new Date().toISOString().slice(0, 10),
     epic_ticket_id: project.epic_ticket_id || '',
+    squad_id: project.squad_id || '',
+    feature_ids: Array.isArray(project.feature_ids) ? project.feature_ids : [],
+    functionalities: project.functionalities || '',
+    goals: project.goals || '',
     created_at: project.created_at || new Date().toISOString(),
     updated_at: project.updated_at || new Date().toISOString()
   }
@@ -802,15 +830,87 @@ function seedProjectEntities(): ProjectEntity[] {
     {
       id: 'project-forge-core',
       name: 'Forge Core',
-      description: 'Blueprints, tickets, squad planning, and delivery tracking.',
+      description: 'Core platform capabilities including blueprints, tickets, squad planning, capacity management, and delivery tracking for the Savant ecosystem.',
       health_status: 'green',
       start_date: formatDate(start),
       end_date: formatDate(end),
       epic_ticket_id: 'JIRA-101',
+      squad_id: 'squad-alpha',
+      feature_ids: [],
+      functionalities: '## Core Functionalities\n\n- **Squad Management**: Configure squads, developers, capacity, and availability\n- **Sprint Planning**: Create and manage sprints, assign story points\n- **Blueprint Engine**: Ingest, manage, and groom Jira tickets\n- **PRD Registry**: Draft, finalize, and publish product requirement documents\n- **Athena Copilot**: AI-powered PM and engineering assistant',
+      goals: '## Project Goals\n\n1. Deliver a unified product management command surface for Savant squads\n2. Enable seamless flow from feature discovery through PRD to Jira execution\n3. Provide real-time squad capacity and delivery visibility',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: 'project-athena-ai',
+      name: 'Athena AI Expansion',
+      description: 'Expanding Athena capabilities to support full PM lifecycle from request to ticket generation with context-aware AI assistance at every step.',
+      health_status: 'yellow',
+      start_date: formatDate(start),
+      end_date: formatDate(end),
+      epic_ticket_id: '',
+      squad_id: 'squad-alpha',
+      feature_ids: [],
+      functionalities: '## Core Functionalities\n\n- **Context-Aware Assistance**: Athena knows the full project, features, PRDs, and tickets context\n- **PRD Generation**: AI-assisted PRD drafting from feature descriptions\n- **Ticket Generation**: Auto-generate Epics, Stories, and Tasks from PRDs\n- **Smart Suggestions**: Proactive recommendations based on project state',
+      goals: '## Project Goals\n\n1. Make Athena context-aware at every level of the PM hierarchy\n2. Reduce time from feature request to actionable Jira tickets by 70%\n3. Enable non-technical PMs to produce engineering-ready specifications',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
   ]
+}
+
+export function getFeatureRequests(): FeatureRequest[] {
+  const stored = localStorage.getItem(STORAGE_FEATURES_KEY)
+  if (!stored) return []
+  try {
+    const parsed = JSON.parse(stored)
+    return Array.isArray(parsed) ? parsed.map((f) => normalizeFeatureRequest(f)) : []
+  } catch {
+    return []
+  }
+}
+
+export function getFeatureRequestsByProject(projectId: string): FeatureRequest[] {
+  return getFeatureRequests().filter((f) => f.project_id === projectId)
+}
+
+export function saveFeatureRequest(feature: FeatureRequest): FeatureRequest[] {
+  const current = getFeatureRequests()
+  const existing = current.find((f) => f.id === feature.id)
+  const next = existing
+    ? current.map((f) => (f.id === feature.id ? normalizeFeatureRequest(feature) : f))
+    : [...current, normalizeFeatureRequest(feature)]
+  localStorage.setItem(STORAGE_FEATURES_KEY, JSON.stringify(next))
+  window.dispatchEvent(new Event('savant-forge-features-changed'))
+  return next
+}
+
+export function deleteFeatureRequest(featureId: string): FeatureRequest[] {
+  const current = getFeatureRequests()
+  const next = current.filter((f) => f.id !== featureId)
+  localStorage.setItem(STORAGE_FEATURES_KEY, JSON.stringify(next))
+  window.dispatchEvent(new Event('savant-forge-features-changed'))
+  return next
+}
+
+function normalizeFeatureRequest(f: Partial<FeatureRequest>): FeatureRequest {
+  const prdIds = Array.isArray(f.prd_ids) && f.prd_ids.length > 0
+    ? f.prd_ids.filter((id): id is string => Boolean(id))
+    : f.prd_id
+    ? [f.prd_id]
+    : []
+  return {
+    id: f.id || `feature_${Math.random().toString(36).slice(2, 8)}`,
+    project_id: f.project_id || '',
+    title: f.title || 'New Feature',
+    description: f.description || '',
+    status: f.status === 'final' ? 'final' : 'draft',
+    prd_ids: prdIds,
+    prd_id: prdIds[0],
+    created_at: f.created_at || new Date().toISOString(),
+    updated_at: f.updated_at || new Date().toISOString()
+  }
 }
 
 // Fetch Jira tickets from server or offline cache
@@ -829,18 +929,50 @@ export async function fetchJiraTickets(serverUrl: string, workspaceId: string): 
       })
       if (res.ok) {
         const rawList = await res.json()
-        const parsedList: JiraTicket[] = rawList.map((t: any) => ({
-          ticket_id: t.ticket_id,
-          workspace_id: t.workspace_id || workspaceId,
-          ticket_key: t.ticket_key,
-          title: t.title || '',
-          status: t.status || 'todo',
-          priority: t.priority || 'medium',
-          assignee: t.assignee || '',
-          reporter: t.reporter || '',
-          // Extract SP from title like "[SP-5] title" or default to 5 or parse description/metadata if present
-          story_points: parseStoryPoints(t)
-        }))
+
+        // Load local cache to preserve prd_id and sprint_id that may not be on the server yet
+        let localCache: JiraTicket[] = []
+        const localCached = localStorage.getItem(STORAGE_TICKETS_KEY)
+        if (localCached) {
+          try { localCache = JSON.parse(localCached) } catch { /* ignore */ }
+        }
+        const localById = new Map(localCache.map(t => [t.ticket_id, t]))
+
+        // Check pending sync queue - tickets with pending updates should use local state
+        let pendingTicketIds = new Set<string>()
+        const syncQueueJson = localStorage.getItem(STORAGE_SYNC_QUEUE_KEY)
+        if (syncQueueJson) {
+          try {
+            const syncQueue = JSON.parse(syncQueueJson)
+            pendingTicketIds = new Set(
+              syncQueue
+                .filter((item: any) => item.action === 'UPDATE_TICKET' || item.action === 'CREATE_TICKET')
+                .map((item: any) => item.ticketId)
+            )
+          } catch { /* ignore */ }
+        }
+
+        const parsedList: JiraTicket[] = rawList.map((t: any) => {
+          const local = localById.get(t.ticket_id)
+          // If this ticket has a pending sync, prefer local data (it's more up-to-date)
+          const hasPendingSync = pendingTicketIds.has(t.ticket_id)
+          return {
+            ticket_id: t.ticket_id,
+            workspace_id: t.workspace_id || workspaceId,
+            ticket_key: t.ticket_key,
+            title: t.title || '',
+            status: t.status || 'todo',
+            priority: t.priority || 'medium',
+            assignee: t.assignee || '',
+            reporter: t.reporter || '',
+            // Extract SP from title like "[SP-5] title" or default to 5 or parse description/metadata if present
+            story_points: parseStoryPoints(t),
+            // Prefer local prd_id when: server doesn't have it, OR there's a pending sync (local is more current)
+            prd_id: (hasPendingSync && local !== undefined) ? local.prd_id : (t.prd_id || local?.prd_id || undefined),
+            // Prefer local sprint_id when: server doesn't have it, OR there's a pending sync
+            sprint_id: (hasPendingSync && local !== undefined) ? local.sprint_id : (t.sprint_id || local?.sprint_id || undefined)
+          }
+        })
 
         // Cache local state
         localStorage.setItem(STORAGE_TICKETS_KEY, JSON.stringify(parsedList))
@@ -917,7 +1049,9 @@ export async function updateTicketLocal(serverUrl: string, ticket: JiraTicket): 
       assignee: ticket.assignee,
       status: ticket.status,
       title: ticket.title,
-      priority: ticket.priority
+      priority: ticket.priority,
+      prd_id: ticket.prd_id,
+      sprint_id: ticket.sprint_id
     },
     timestamp: Date.now()
   })
@@ -927,6 +1061,32 @@ export async function updateTicketLocal(serverUrl: string, ticket: JiraTicket): 
   triggerSync(serverUrl).catch(console.error)
 
   return ticket
+}
+
+export async function deleteTicketLocal(serverUrl: string, ticketId: string): Promise<void> {
+  const cached = localStorage.getItem(STORAGE_TICKETS_KEY)
+  let tickets: JiraTicket[] = []
+  if (cached) {
+    try {
+      tickets = JSON.parse(cached)
+    } catch {
+      //
+    }
+  }
+
+  localStorage.setItem(STORAGE_TICKETS_KEY, JSON.stringify(tickets.filter((ticket) => ticket.ticket_id !== ticketId)))
+
+  const queueJson = localStorage.getItem(STORAGE_SYNC_QUEUE_KEY)
+  const queue = queueJson ? JSON.parse(queueJson) : []
+  queue.push({
+    action: 'DELETE_TICKET',
+    ticketId,
+    payload: { ticket_id: ticketId },
+    timestamp: Date.now()
+  })
+  localStorage.setItem(STORAGE_SYNC_QUEUE_KEY, JSON.stringify(queue))
+
+  triggerSync(serverUrl).catch(console.error)
 }
 
 // Create ticket local and sync back
@@ -950,7 +1110,9 @@ export async function createTicketLocal(serverUrl: string, ticketData: Partial<J
     priority: ticketData.priority || 'medium',
     assignee: ticketData.assignee || '',
     reporter: ticketData.reporter || 'operator',
-    story_points: parseStoryPoints(ticketData)
+    story_points: parseStoryPoints(ticketData),
+    prd_id: ticketData.prd_id || undefined,
+    sprint_id: ticketData.sprint_id || undefined
   }
 
   tickets.push(newTicket)
@@ -970,7 +1132,9 @@ export async function createTicketLocal(serverUrl: string, ticketData: Partial<J
       status: newTicket.status,
       priority: newTicket.priority,
       assignee: newTicket.assignee,
-      reporter: newTicket.reporter
+      reporter: newTicket.reporter,
+      prd_id: newTicket.prd_id,
+      sprint_id: newTicket.sprint_id
     },
     timestamp: Date.now()
   })
@@ -1015,6 +1179,18 @@ export async function triggerSync(serverUrl: string) {
             remainingQueue.push(task)
           }
         }
+      } else if (task.action === 'DELETE_TICKET') {
+        const res = await fetch(`${serverUrl}/api/jira-tickets/${task.ticketId}`, {
+          method: 'DELETE',
+          headers: {
+            'X-API-Key': apiKey,
+            'Content-Type': 'application/json'
+          },
+          signal: AbortSignal.timeout(3000)
+        })
+        if (!res.ok && res.status !== 404) {
+          remainingQueue.push(task)
+        }
       } else if (task.action === 'CREATE_TICKET') {
         const res = await fetch(`${serverUrl}/api/jira-tickets`, {
           method: 'POST',
@@ -1044,9 +1220,13 @@ export interface PRDDocument {
   id: string
   title: string
   content: string
-  status: 'draft' | 'synced'
+  status: 'draft' | 'final' | 'ready' | 'synced'
   confluenceUrl?: string
   lastUpdated: string
+  squadId?: string // Link to a squad
+  project_id?: string // Link to a project
+  feature_id?: string // Link to originating feature request
+  epic_ids?: string[] // Jira epic ticket IDs generated from this PRD
 }
 
 const STORAGE_PRD_KEY = 'savant_forge_prds'
@@ -1095,4 +1275,87 @@ export async function pushToConfluence(prdId: string): Promise<PRDDocument> {
   }
   saveLocalPRD(updated)
   return updated
+}
+
+export async function loadPRDsFromServer(serverUrl: string): Promise<PRDDocument[]> {
+  const apiKey = getStoredApiKey()
+  if (!apiKey) return getLocalPRDs()
+
+  const localPRDs = getLocalPRDs()
+
+  try {
+    const res = await fetch(`${serverUrl}/api/preferences`, {
+      headers: {
+        'X-API-Key': apiKey,
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(3000)
+    })
+    if (res.ok) {
+      const prefs = await res.json()
+      if (prefs && Array.isArray(prefs.prds) && prefs.prds.length > 0) {
+        // Merge server PRDs with local PRDs:
+        // - Keep all server PRDs
+        // - Add any local-only PRDs (created but not yet synced to server)
+        const serverIds = new Set(prefs.prds.map((p: PRDDocument) => p.id))
+        const localOnlyPRDs = localPRDs.filter(p => !serverIds.has(p.id))
+        const merged = [...prefs.prds, ...localOnlyPRDs]
+        localStorage.setItem(STORAGE_PRD_KEY, JSON.stringify(merged))
+        // Re-sync local-only PRDs to server if any
+        if (localOnlyPRDs.length > 0) {
+          syncPRDsToServer(serverUrl, merged).catch(console.error)
+        }
+        return merged
+      }
+      // Server returned empty prds array - prefer local data to avoid data loss
+      if (prefs && Array.isArray(prefs.prds) && prefs.prds.length === 0 && localPRDs.length > 0) {
+        // Push local PRDs to server so they get persisted
+        syncPRDsToServer(serverUrl, localPRDs).catch(console.error)
+        return localPRDs
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load PRDs from server preferences:', e)
+  }
+
+  return localPRDs
+}
+
+export async function syncPRDsToServer(serverUrl: string, prds: PRDDocument[]): Promise<void> {
+  const apiKey = getStoredApiKey()
+  if (!apiKey) return
+
+  try {
+    // 1. Get existing preferences
+    let prefs: any = {}
+    const getRes = await fetch(`${serverUrl}/api/preferences`, {
+      headers: {
+        'X-API-Key': apiKey,
+        'Accept': 'application/json'
+      },
+      signal: AbortSignal.timeout(3000)
+    })
+    if (getRes.ok) {
+      prefs = await getRes.json()
+    }
+
+    // 2. Update with the current prds array
+    const updatedPrefs = {
+      ...prefs,
+      prds
+    }
+
+    // 3. Post back
+    await fetch(`${serverUrl}/api/preferences`, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updatedPrefs),
+      signal: AbortSignal.timeout(3000)
+    })
+  } catch (e) {
+    console.error('Failed to sync PRDs to server preferences:', e)
+  }
 }
