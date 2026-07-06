@@ -1,6 +1,16 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage } from 'electron'
+import { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain } from 'electron'
 import path from 'node:path'
 import packageJson from '../../../package.json'
+import {
+  loadAthenaRuns,
+  loadAthenaThreads,
+  saveAthenaRuns,
+  saveAthenaThreads,
+  setAthenaThreadActiveRun,
+  upsertAthenaRun,
+  upsertAthenaThread,
+  updateAthenaRun
+} from './athenaDb'
 
 type SavantShellConfig = {
   appName?: string
@@ -77,8 +87,125 @@ function createTray() {
   ]))
 }
 
+function registerAthenaIpc() {
+  ipcMain.on('athena:load-threads', (event) => {
+    event.returnValue = loadAthenaThreads()
+  })
+  ipcMain.on('athena:save-thread', (event, thread) => {
+    upsertAthenaThread(thread)
+    event.returnValue = true
+  })
+  ipcMain.on('athena:load-runs', (event) => {
+    event.returnValue = loadAthenaRuns()
+  })
+  ipcMain.on('athena:save-run', (event, run) => {
+    upsertAthenaRun(run)
+    event.returnValue = true
+  })
+  ipcMain.on('athena:save-runs', (event, runs) => {
+    saveAthenaRuns(runs)
+    event.returnValue = true
+  })
+  ipcMain.on('athena:update-run', (event, runId, updater) => {
+    updateAthenaRun(runId, updater)
+    event.returnValue = true
+  })
+  ipcMain.handle('athena:resolve-persona', async (_event, personaId: string, tags: string[] = []) => {
+    const baseUrl = process.env.SAVANT_SERVER_URL || 'http://127.0.0.1:8090'
+    const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/abilities/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ persona: personaId, tags })
+    })
+    if (!response.ok) return ''
+    const data = await response.json()
+    return data.prompt || data.persona || ''
+  })
+  ipcMain.handle('athena:load-tools', async () => {
+    const baseUrl = process.env.SAVANT_SERVER_URL || 'http://127.0.0.1:8090'
+    try {
+      const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/mcp/tools?_=${Date.now()}`)
+      if (!response.ok) return []
+      const data = await response.json()
+      const tools = Array.isArray(data?.tools) ? data.tools : Array.isArray(data) ? data : []
+      return tools.slice(0, 20).map((tool: any) => ({
+        name: tool.name || 'unknown',
+        description: tool.description || ''
+      }))
+    } catch {
+      return []
+    }
+  })
+  ipcMain.handle('athena:run-gateway', async (_event, payload) => {
+    const gatewayUrl = process.env.SAVANT_GATEWAY_URL || 'http://127.0.0.1:3100'
+    const response = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(30000)
+    })
+    if (!response.ok) {
+      throw new Error(`Gateway rejected Athena run: ${response.status} ${response.statusText}`)
+    }
+    const runData = await response.json()
+    const runId = String(runData.id || '')
+    if (!runId) return runData
+
+    try {
+      const streamResponse = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs/${runId}/stream`)
+      if (!streamResponse.ok || !streamResponse.body) return runData
+
+      const reader = streamResponse.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let assistantText = ''
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let boundary = buffer.indexOf('\n\n')
+        while (boundary >= 0) {
+          const chunk = buffer.slice(0, boundary)
+          buffer = buffer.slice(boundary + 2)
+          const dataLine = chunk.split('\n').find((line) => line.startsWith('data:'))
+          if (dataLine) {
+            const payloadText = dataLine.replace(/^data:\s*/, '')
+            try {
+              const eventPayload = JSON.parse(payloadText)
+              if (eventPayload?.type === 'chunk') {
+                assistantText += String(eventPayload.content || '')
+              }
+              if (eventPayload?.type === 'complete') {
+                assistantText = String(eventPayload.content || eventPayload.message || assistantText || '')
+              }
+            } catch {
+              // Ignore malformed stream frames and continue consuming.
+            }
+          }
+          boundary = buffer.indexOf('\n\n')
+        }
+      }
+
+      return { ...runData, message: assistantText || runData.message || '' }
+    } catch {
+      return runData
+    }
+  })
+  ipcMain.handle('athena:kill-run', async (_event, runId: string) => {
+    const gatewayUrl = process.env.SAVANT_GATEWAY_URL || 'http://127.0.0.1:3100'
+    const response = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs/${runId}`, {
+      method: 'DELETE'
+    })
+    if (!response.ok) {
+      throw new Error(`Gateway rejected Athena run kill: ${response.status} ${response.statusText}`)
+    }
+  })
+}
+
 app.whenReady().then(() => {
   app.setName(appName)
+  registerAthenaIpc()
   createWindow()
   createTray()
 })

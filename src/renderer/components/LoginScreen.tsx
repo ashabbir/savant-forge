@@ -1,128 +1,91 @@
-import { useState } from "react";
-import { KeyRound, X, Check, AlertTriangle } from "lucide-react";
+import { useRef, useState } from 'react'
+import { AlertTriangle, KeyRound, LogIn } from 'lucide-react'
 
 interface LoginScreenProps {
-  onLogin: (apiKey: string) => Promise<void>;
+  onLogin: (apiKey: string, serverUrl?: string) => Promise<void>
+  initialServerUrl?: string
 }
 
-export function LoginScreen({ onLogin }: LoginScreenProps) {
-  const [apiKey, setApiKey] = useState("");
-  const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export function LoginScreen({ onLogin, initialServerUrl }: LoginScreenProps) {
+  const apiKeyRef = useRef<HTMLInputElement>(null)
+  const serverUrlRef = useRef<HTMLInputElement>(null)
+  const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    const trimmed = apiKey.trim();
+    event.preventDefault()
+    const trimmed = apiKeyRef.current?.value.trim() || ''
     if (!trimmed) {
-      setError("Savant API key is required.");
-      return;
+      setError('Savant API key is required.')
+      return
     }
 
-    setIsSubmitting(true);
-    setError("");
+    setIsSubmitting(true)
+    setError('')
     try {
-      await onLogin(trimmed);
+      await onLogin(trimmed, serverUrlRef.current?.value.trim())
     } catch (e: any) {
-      setError(e?.message || "Login failed.");
-      setIsSubmitting(false);
+      setError(e?.message || 'Login failed.')
+      setIsSubmitting(false)
     }
-  }
-
-  function handleClear() {
-    setApiKey("");
-    setError("");
   }
 
   return (
-    <div className="modal-backdrop" data-testid="login-backdrop">
-      <div 
-        className="modal-card flex flex-col gap-4" 
-        style={{ maxWidth: '460px', position: 'relative' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Modal Header */}
-        <div className="modal-head border-b border-[var(--cp-border)] pb-3" style={{ borderBottom: '1px solid var(--cp-border)', paddingBottom: '8px', marginBottom: '12px' }}>
+    <div className="login-screen">
+      <div className="login-ambient" aria-hidden="true">
+        <div className="login-ambient-cyan" />
+        <div className="login-ambient-magenta" />
+      </div>
+
+      <form className="login-form" onSubmit={handleSubmit}>
+        <div className="login-brand">
+          <div className="login-mark">
+            <img src="./main.svg" alt="" />
+          </div>
           <div>
-            <div className="eyebrow">Access Control</div>
-            <h2 style={{ margin: 0, fontSize: '16px', color: 'var(--cp-cyan)', fontFamily: "'Orbitron', sans-serif" }} className="tracking-widest uppercase">
-              Operator Login
-            </h2>
+            <h1>Savant Forge</h1>
+            <p>Authenticate with your Savant API key</p>
           </div>
         </div>
 
-        {/* Modal Body */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", color: 'var(--section-label)', fontSize: '11px' }}>
-              Savant Authentication Portal
-            </div>
+        <label className="login-label" htmlFor="login-server-url">Server URL</label>
+        <div className="login-input-row login-server-row">
+          <input
+            id="login-server-url"
+            ref={serverUrlRef}
+            type="text"
+            defaultValue={initialServerUrl || 'http://127.0.0.1:8090'}
+            placeholder="http://127.0.0.1:8090"
+          />
+        </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--muted-foreground)' }}>Savant API Key</label>
-              <div
-                style={{ background: "var(--cp-bg-3)", border: "1px solid var(--cp-border)", display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px' }}
-              >
-                <KeyRound size={14} style={{ color: "var(--cp-cyan)", opacity: 0.7 }} />
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
-                  autoFocus
-                  placeholder="sk-..."
-                  style={{
-                    background: "transparent",
-                    color: "var(--foreground)",
-                    fontFamily: "'Share Tech Mono', monospace",
-                    outline: "none",
-                    border: "none",
-                    width: "100%",
-                    fontSize: '12px'
-                  }}
-                />
-              </div>
-            </div>
+        <label className="login-label" htmlFor="login-api-key">Savant API Key</label>
+        <div className="login-input-row">
+          <KeyRound size={14} />
+          <input
+            id="login-api-key"
+            ref={apiKeyRef}
+            type="password"
+            onInput={() => {
+              if (error) setError('')
+            }}
+            autoFocus
+            placeholder="sk-..."
+          />
+        </div>
 
-            {error && (
-              <div
-                style={{ color: "var(--cp-magenta)", fontFamily: "'Share Tech Mono', monospace", display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', marginTop: '4px' }}
-              >
-                <AlertTriangle size={13} />
-                <span>{error}</span>
-              </div>
-            )}
+        {error && (
+          <div className="login-error">
+            <AlertTriangle size={13} />
+            <span>{error}</span>
           </div>
+        )}
 
-          {/* Modal Footer with X and ✅ icons only */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginTop: '8px', paddingTop: '12px', borderTop: '1px solid var(--cp-border)' }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: '10px', color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-              {isSubmitting ? 'Authenticating...' : 'Enter API Key to enter Forge'}
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {/* Clear / X Icon Button */}
-              <button
-                type="button"
-                onClick={handleClear}
-                aria-label="Clear Key"
-                title="Clear Key"
-                disabled={isSubmitting}
-                style={{ background: 'transparent', border: '1px solid rgba(255, 0, 170, 0.35)', color: 'var(--cp-magenta)', width: '28px', height: '28px', display: 'grid', placeItems: 'center', cursor: 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
-              >
-                <X size={14} />
-              </button>
-              {/* Login / ✅ Icon Button */}
-              <button
-                type="submit"
-                aria-label="Validate Key"
-                title="Validate Key"
-                disabled={isSubmitting}
-                style={{ background: 'rgba(0, 255, 136, 0.08)', border: '1px solid rgba(0, 255, 136, 0.35)', color: 'var(--cp-green)', width: '28px', height: '28px', display: 'grid', placeItems: 'center', cursor: 'pointer', opacity: isSubmitting ? 0.5 : 1 }}
-              >
-                <Check size={14} />
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
+        <button className="login-submit" type="submit" disabled={isSubmitting}>
+          <LogIn size={14} />
+          {isSubmitting ? 'AUTHENTICATING...' : 'LOGIN'}
+        </button>
+      </form>
     </div>
-  );
+  )
 }

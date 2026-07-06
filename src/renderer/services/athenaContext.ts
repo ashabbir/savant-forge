@@ -6,6 +6,12 @@ export interface AthenaContextHit {
   score?: number;
 }
 
+type AthenaTool = { name: string; description: string }
+
+function getAthenaSystem() {
+  return globalThis.window?.system
+}
+
 export const ATHENA_SYSTEM_DIRECTIVE = [
   "You are ATHENA inside Savant Forge.",
   "You are a Product Management copilot.",
@@ -29,17 +35,20 @@ export async function fetchAthenaCodeContext(baseUrl: string, apiKey: string, qu
 }
 
 export async function fetchAthenaMcpTools(baseUrl: string, apiKey: string) {
+  void baseUrl
+  void apiKey
   try {
-    const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/api/mcp/tools?_=${Date.now()}`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    const tools = Array.isArray(data?.tools) ? data.tools : Array.isArray(data) ? data : [];
-    return tools.slice(0, 20).map((tool: any) => ({
-      name: tool.name || "unknown",
-      description: tool.description || "",
-    }));
+    const system = getAthenaSystem()
+    if (!system?.loadAthenaMcpTools) return []
+    const tools = await system.loadAthenaMcpTools()
+    return Array.isArray(tools)
+      ? tools.slice(0, 20).map((tool: any) => ({
+          name: tool?.name || 'unknown',
+          description: tool?.description || ''
+        }))
+      : []
   } catch {
-    return [];
+    return []
   }
 }
 
@@ -48,22 +57,13 @@ export async function resolveAthenaPersona(
   personaId: string,
   tags: string[] = []
 ): Promise<string> {
+  void baseUrl
   try {
-    const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/api/abilities/resolve`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        persona: personaId,
-        tags: tags,
-      }),
-    });
-    if (!res.ok) return "";
-    const data = await res.json();
-    return data.prompt || data.persona || "";
+    const system = getAthenaSystem()
+    if (!system?.resolveAthenaPersona) return ""
+    return await system.resolveAthenaPersona(personaId, tags)
   } catch {
-    return "";
+    return ""
   }
 }
 

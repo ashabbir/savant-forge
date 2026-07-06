@@ -734,7 +734,7 @@ function App() {
     setSelectedPrdId(null)
   }
 
-  async function loadDomainData() {
+  async function loadDomainData(targetServerUrl = serverUrl) {
     const cfg = await getForgeConfig()
     setConfig(cfg)
     if (cfg.active_squad_id) {
@@ -742,9 +742,9 @@ function App() {
     }
 
     const activeWorkspaceId = '17807589009121862532574'
-    const fetchedTickets = await fetchJiraTickets(serverUrl, activeWorkspaceId)
+    const fetchedTickets = await fetchJiraTickets(targetServerUrl, activeWorkspaceId)
     setTickets(fetchedTickets)
-    const fetchedPrds = await loadPRDsFromServer(serverUrl)
+    const fetchedPrds = await loadPRDsFromServer(targetServerUrl)
     setPrds(fetchedPrds)
     setSprintPlans(getSprintPlans())
     setAvailabilityEvents(getAvailabilityEvents())
@@ -756,10 +756,13 @@ function App() {
     }
   }
 
-  async function handleLoginWithKey(key: string) {
-    const nextProfile = await login(serverUrl, key)
+  async function handleLoginWithKey(key: string, selectedServerUrl?: string) {
+    const targetServerUrl = selectedServerUrl?.trim() || serverUrl
+    const nextProfile = await login(targetServerUrl, key)
+    setServerUrl(targetServerUrl)
+    localStorage.setItem('savant_server_url', targetServerUrl)
     setProfile(nextProfile)
-    await loadDomainData()
+    await loadDomainData(targetServerUrl)
     setSelectedDeveloperId(null)
     setSelectedTicketId(null)
     setSelectedPrdId(null)
@@ -1129,26 +1132,17 @@ function App() {
       })
       setAthenaThreadActiveRun(threadId, tempRunId)
 
-      const response = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          prompt: composedPrompt,
-          chain: [{ provider, model }],
-          cwd: '/Users/home/code/project-x/savant-forge',
-          contextKey: athenaContextProfile.key,
-          contextKind: athenaContextProfile.kind,
-          threadId
-        }),
-        signal: AbortSignal.timeout(30000)
+      const runData = await window.system?.runAgentViaGateway?.({
+        prompt: composedPrompt,
+        chain: [{ provider, model }],
+        cwd: '/Users/home/code/project-x/savant-forge',
+        contextKey: athenaContextProfile.key,
+        contextKind: athenaContextProfile.kind,
+        threadId
       })
 
-      if (!response.ok) {
-        throw new Error(`Gateway rejected Athena run: ${response.status} ${response.statusText}`)
-      }
-
-      const runData = await response.json()
-      const runId = String(runData.id || tempRunId)
+      const runId = String((runData as any)?.id || tempRunId)
+      const finalText = cleanAthenaOutput(String((runData as any)?.message || 'Run completed.'))
 
       if (runId !== tempRunId) {
         const currentRuns = loadAthenaRuns().filter((r) => r.id !== tempRunId)
@@ -1159,132 +1153,32 @@ function App() {
         id: runId,
         provider,
         model,
-        status: 'running',
+        status: 'complete',
         startedAt,
+        endedAt: new Date().toISOString(),
         prompt: promptText,
-        message: '',
-        events: [{ type: 'thinking', status: 'running', provider, model, reason: 'submitted to gateway' }],
-        source: 'local',
+        message: finalText,
+        events: [{ type: 'complete', status: 'complete', content: finalText }],
+        source: 'gateway',
         app: 'forge',
         workspace_id: FORGE_WORKSPACE_ID,
         contextKey: athenaContextProfile.key,
         contextKind: athenaContextProfile.kind
       })
-      setAthenaThreadActiveRun(threadId, runId)
-
-      const eventSource = new EventSource(`${gatewayUrl.replace(/\/+$/, '')}/runs/${runId}/stream`)
-      let assistantText = ''
-
-      eventSource.onmessage = (event) => {
-        const payload = parsePromptStreamData(event.data || '')
-        const type = payload.type || 'chunk'
-
-        if (type === 'thinking') {
-          updateAthenaRun(runId, (run) => ({
-            ...run,
-            events: [...run.events, {
-              type: 'thinking',
-              status: payload.status || 'running',
-              provider: payload.provider || provider,
-              model: payload.model || model,
-              reason: payload.reason || payload.message || ''
-            }]
-          }))
-        } else if (type === 'chunk') {
-          const content = String(payload.content || '')
-          assistantText += content
-          updateAthenaRun(runId, (run) => ({
-            ...run,
-            events: [...run.events, { type: 'chunk', content }]
-          }))
-        } else if (type === 'complete') {
-          const finalText = String(payload.content || payload.message || assistantText || 'Run completed.')
-          assistantText = finalText
-          updateAthenaRun(runId, (run) => ({
-            ...run,
-            status: 'complete',
-            endedAt: new Date().toISOString(),
-            message: finalText,
-            events: [...run.events, { type: 'complete', status: 'complete', content: finalText }]
-          }))
-          const cleanText = cleanAthenaOutput(finalText)
-          appendAthenaThreadMessage(threadId, {
-            id: `ai-${Date.now()}`,
-            sender: 'assistant',
-            text: cleanText,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          })
-          setAthenaThreadActiveRun(threadId, '')
-          setChatMessages((prev) => [...prev, {
-            id: `ai-${Date.now()}`,
-            sender: 'assistant',
-            text: cleanText,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }])
-          setIsAiLoading(false)
-          eventSource.close()
-        } else if (type === 'error') {
-          const message = payload.message || payload.error || 'Athena run failed.'
-          updateAthenaRun(runId, (run) => ({
-            ...run,
-            status: 'error',
-            endedAt: new Date().toISOString(),
-            message,
-            events: [...run.events, { type: 'error', status: 'error', message }]
-          }))
-          appendAthenaThreadMessage(threadId, {
-            id: `ai-error-${Date.now()}`,
-            sender: 'assistant',
-            text: `Athena error: ${message}`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          })
-          setAthenaThreadActiveRun(threadId, '')
-          setChatMessages((prev) => [...prev, {
-            id: `ai-${Date.now()}`,
-            sender: 'assistant',
-            text: `Athena error: ${message}`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }])
-          setIsAiLoading(false)
-          eventSource.close()
-        }
-      }
-
-      eventSource.onerror = (err) => {
-        console.error('EventSource connection error:', err)
-        if (eventSource.readyState === EventSource.CLOSED) return
-        
-        const message = 'Connection to stream closed unexpectedly.'
-        updateAthenaRun(runId, (run) => {
-          if (run.status === 'complete' || run.status === 'error') return run
-          return {
-            ...run,
-            status: 'error',
-            endedAt: new Date().toISOString(),
-            message,
-            events: [...run.events, { type: 'error', status: 'error', message }]
-          }
-        })
-        appendAthenaThreadMessage(threadId, {
-          id: `ai-error-${Date.now()}`,
-          sender: 'assistant',
-          text: `Athena error: ${message}`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        })
-        setAthenaThreadActiveRun(threadId, '')
-        setChatMessages((prev) => {
-          const last = prev[prev.length - 1]
-          if (last && last.text.includes('Athena error')) return prev
-          return [...prev, {
-            id: `ai-${Date.now()}`,
-            sender: 'assistant',
-            text: `Athena error: ${message}`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }]
-        })
-        setIsAiLoading(false)
-        eventSource.close()
-      }
+      setAthenaThreadActiveRun(threadId, '')
+      appendAthenaThreadMessage(threadId, {
+        id: `ai-${Date.now()}`,
+        sender: 'assistant',
+        text: finalText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      })
+      setChatMessages((prev) => [...prev, {
+        id: `ai-${Date.now()}`,
+        sender: 'assistant',
+        text: finalText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }])
+      setIsAiLoading(false)
 
     } catch (e: any) {
       console.error(e)
@@ -1785,6 +1679,10 @@ function App() {
     setSelectedDeveloperId(nextDev.id)
     setSelectedSquadId(targetSquadId)
     setIsDeveloperModalOpen(false)
+  }
+
+  if (!profile) {
+    return <LoginScreen onLogin={handleLoginWithKey} initialServerUrl={serverUrl} />
   }
 
   return (
@@ -3898,10 +3796,6 @@ function App() {
           </div>
         </div>
       )}
-      {/* Login Modal Overlay */}
-      {!profile && (
-        <LoginScreen onLogin={handleLoginWithKey} />
-      )}
     </div>
   )
 }
@@ -4174,14 +4068,8 @@ function PromptTracker({
 
   async function handleKillRun(runId: string) {
     try {
-      const headers: Record<string, string> = {}
-      const response = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs/${runId}`, {
-        method: 'DELETE',
-        headers
-      })
-      if (response.ok) {
-        updateAthenaRun(runId, (run) => ({ ...run, status: 'error', endedAt: new Date().toISOString() }))
-      }
+      await window.system?.killAthenaRun?.(runId)
+      updateAthenaRun(runId, (run) => ({ ...run, status: 'error', endedAt: new Date().toISOString() }))
     } catch {
       updateAthenaRun(runId, (run) => ({ ...run, status: 'error', endedAt: new Date().toISOString() }))
     }

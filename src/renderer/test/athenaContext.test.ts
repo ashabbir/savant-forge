@@ -11,6 +11,12 @@ import {
 describe('athenaContext', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
+    vi.stubGlobal('window', {
+      system: {
+        loadAthenaMcpTools: vi.fn(),
+        resolveAthenaPersona: vi.fn()
+      }
+    } as any)
   })
 
   afterEach(() => {
@@ -31,11 +37,7 @@ describe('athenaContext', () => {
         { name: 'read_file', description: 'reads a file' },
         { name: 'run_command' }
       ]
-
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ tools: mockTools })
-      } as Response)
+      vi.mocked(window.system!.loadAthenaMcpTools).mockResolvedValueOnce(mockTools as any)
 
       const result = await fetchAthenaMcpTools('http://localhost', 'key')
 
@@ -46,10 +48,7 @@ describe('athenaContext', () => {
 
     it('handles flat array formats for tools', async () => {
       const mockTools = [{ name: 'tool-flat' }]
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockTools)
-      } as Response)
+      vi.mocked(window.system!.loadAthenaMcpTools).mockResolvedValueOnce(mockTools as any)
 
       const result = await fetchAthenaMcpTools('http://localhost', 'key')
       expect(result.length).toBe(1)
@@ -57,7 +56,7 @@ describe('athenaContext', () => {
     })
 
     it('returns empty array if fetch fails', async () => {
-      vi.mocked(fetch).mockRejectedValueOnce(new Error('error'))
+      vi.mocked(window.system!.loadAthenaMcpTools).mockRejectedValueOnce(new Error('error'))
       const result = await fetchAthenaMcpTools('http://localhost', 'key')
       expect(result).toEqual([])
     })
@@ -87,31 +86,24 @@ describe('athenaContext', () => {
 
   describe('resolveAthenaPersona', () => {
     it('returns prompt on success', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ prompt: 'Resolved prompt text' })
-      } as Response)
+      vi.mocked(window.system!.resolveAthenaPersona).mockResolvedValueOnce('Resolved prompt text')
 
       const result = await resolveAthenaPersona('http://localhost', 'persona.product', ['product'])
       expect(result).toBe('Resolved prompt text')
     })
 
     it('falls back to persona on success if prompt is missing', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ persona: 'Persona only text' })
-      } as Response)
+      vi.mocked(window.system!.resolveAthenaPersona).mockResolvedValueOnce('Persona only text')
 
       const result = await resolveAthenaPersona('http://localhost', 'persona.product', ['product'])
       expect(result).toBe('Persona only text')
     })
 
     it('returns empty string if API call fails', async () => {
-      vi.mocked(fetch).mockRejectedValueOnce(new Error('resolve fail'))
+      vi.mocked(window.system!.resolveAthenaPersona).mockRejectedValueOnce(new Error('resolve fail'))
 
       const result = await resolveAthenaPersona('http://localhost', 'persona.product', ['product'])
       expect(result).toBe('')
     })
   })
 })
-

@@ -36,13 +36,31 @@ export type AthenaRunRecord = {
 
 const THREADS_KEY = 'savant_forge_athena_threads'
 const RUNS_KEY = 'savant_forge_athena_runs'
+const memoryStore = {
+  threads: [] as AthenaThread[],
+  runs: [] as AthenaRunRecord[]
+}
+
+function getSystemBridge() {
+  return globalThis.window?.system
+}
 
 export function loadAthenaThreads(): AthenaThread[] {
-  return readJson<AnyArray>(THREADS_KEY).map((thread) => normalizeThread(thread))
+  const system = getSystemBridge()
+  if (system?.loadAthenaThreads) {
+    return system.loadAthenaThreads().map((thread) => normalizeThread(thread))
+  }
+  return memoryStore.threads.map((thread) => normalizeThread(thread))
 }
 
 export function saveAthenaThreads(threads: AthenaThread[]) {
-  localStorage.setItem(THREADS_KEY, JSON.stringify(threads.slice(-40)))
+  const normalized = threads.slice(-40).map((thread) => normalizeThread(thread))
+  const system = getSystemBridge()
+  if (system?.saveAthenaThread) {
+    normalized.forEach((thread) => system.saveAthenaThread(thread))
+    return
+  }
+  memoryStore.threads = normalized
 }
 
 export function upsertAthenaThread(thread: AthenaThread) {
@@ -90,11 +108,21 @@ export function setAthenaThreadActiveRun(threadId: string, runId?: string) {
 }
 
 export function loadAthenaRuns(): AthenaRunRecord[] {
-  return readJson<AnyArray>(RUNS_KEY).map((run) => normalizeRun(run))
+  const system = getSystemBridge()
+  if (system?.loadAthenaRuns) {
+    return system.loadAthenaRuns().map((run) => normalizeRun(run))
+  }
+  return memoryStore.runs.map((run) => normalizeRun(run))
 }
 
 export function saveAthenaRuns(runs: AthenaRunRecord[]) {
-  localStorage.setItem(RUNS_KEY, JSON.stringify(runs.slice(-80)))
+  const normalized = runs.slice(-80).map((run) => normalizeRun(run))
+  const system = getSystemBridge()
+  if (system?.saveAthenaRuns) {
+    system.saveAthenaRuns(normalized)
+    return
+  }
+  memoryStore.runs = normalized
 }
 
 export function upsertAthenaRun(run: AthenaRunRecord) {
@@ -152,17 +180,6 @@ function normalizeRun(run: Partial<AthenaRunRecord>): AthenaRunRecord {
 }
 
 type AnyArray = Array<any>
-
-function readJson<T extends AnyArray>(key: string): T {
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return [] as unknown as T
-    const parsed = JSON.parse(raw)
-    return (Array.isArray(parsed) ? parsed : []) as T
-  } catch {
-    return [] as unknown as T
-  }
-}
 
 function dispatchChange() {
   window.dispatchEvent(new Event('savant-forge-athena-changed'))

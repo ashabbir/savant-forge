@@ -105,6 +105,164 @@ button {
   cursor: pointer;
 }
 
+.login-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #080b12;
+}
+
+.login-ambient {
+  position: absolute;
+  inset: 0;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.login-ambient-cyan,
+.login-ambient-magenta {
+  position: absolute;
+  width: 24rem;
+  height: 24rem;
+  filter: blur(120px);
+}
+
+.login-ambient-cyan {
+  top: 25%;
+  left: 25%;
+  background: var(--cp-cyan);
+}
+
+.login-ambient-magenta {
+  right: 25%;
+  bottom: 25%;
+  background: var(--cp-magenta);
+}
+
+.login-form {
+  position: relative;
+  width: 90vw;
+  max-width: 28rem;
+  padding: 1.5rem;
+  background: rgba(13, 18, 32, 0.92);
+  border: 1px solid var(--cp-border);
+  box-shadow: 0 0 30px rgba(0, 229, 255, 0.12);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.login-mark {
+  display: grid;
+  width: 50px;
+  height: 50px;
+  padding: 0.55rem;
+  place-items: center;
+  color: var(--cp-cyan);
+  border: 1px solid var(--cp-cyan);
+}
+
+.login-mark img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.login-brand h1 {
+  margin: 0;
+  color: var(--cp-cyan);
+  font: 400 1rem 'Orbitron', sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.login-brand p {
+  margin: 0;
+  color: var(--foreground);
+  font: 0.875rem 'Rajdhani', sans-serif;
+  opacity: 0.6;
+}
+
+.login-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--cp-cyan);
+  font: 0.75rem 'Share Tech Mono', monospace;
+  opacity: 0.7;
+}
+
+.login-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--cp-bg-3);
+  border: 1px solid var(--cp-border);
+}
+
+.login-server-row {
+  margin-bottom: 1rem;
+}
+
+.login-input-row svg {
+  flex: 0 0 auto;
+  color: var(--cp-cyan);
+  opacity: 0.7;
+}
+
+.login-input-row input {
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  color: var(--foreground);
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--cp-cyan);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: 0.75rem 'Share Tech Mono', monospace;
+}
+
+.login-input-row input::placeholder {
+  color: var(--foreground);
+  opacity: 0.3;
+}
+
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  color: var(--cp-magenta);
+  font: 0.75rem 'Share Tech Mono', monospace;
+}
+
+.login-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 1.5rem;
+  padding: 0.5rem 1rem;
+  color: var(--cp-bg-0);
+  background: var(--cp-cyan);
+  border: 0;
+  font: 500 0.75rem 'Share Tech Mono', monospace;
+}
+
+.login-submit:disabled {
+  opacity: 0.5;
+}
+
 .app-shell {
   width: 100vw;
   height: 100vh;

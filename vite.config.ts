@@ -10,7 +10,14 @@ export default defineConfig({
     react(),
     electron({
       main: {
-        entry: 'src/main/electron/main.ts'
+        entry: 'src/main/electron/main.ts',
+        vite: {
+          build: {
+            rollupOptions: {
+              external: ['better-sqlite3']
+            }
+          }
+        }
       },
       preload: {
         input: path.join(__dirname, 'src/main/electron/preload.ts')

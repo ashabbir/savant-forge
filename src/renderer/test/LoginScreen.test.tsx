@@ -6,16 +6,27 @@ describe('LoginScreen', () => {
   it('renders branding elements, placeholder, and inputs', () => {
     render(<LoginScreen onLogin={async () => {}} />)
 
-    expect(screen.getByText('Operator Login')).toBeTruthy()
-    expect(screen.getByText('Savant Authentication Portal')).toBeTruthy()
+    expect(screen.getByText('Savant Forge')).toBeTruthy()
+    expect(screen.getByText('Authenticate with your Savant API key')).toBeTruthy()
+    expect((screen.getByLabelText('Server URL') as HTMLInputElement).value).toBe('http://127.0.0.1:8090')
     expect(screen.getByPlaceholderText('sk-...')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Validate Key' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'LOGIN' })).toBeTruthy()
+  })
+
+  it('focuses the API key input and accepts typing immediately', () => {
+    render(<LoginScreen onLogin={async () => {}} />)
+
+    const input = screen.getByLabelText('Savant API Key') as HTMLInputElement
+    expect(document.activeElement).toBe(input)
+
+    fireEvent.input(input, { target: { value: 'sk-focused' } })
+    expect(input.value).toBe('sk-focused')
   })
 
   it('renders validation error when trying to submit empty key', async () => {
     render(<LoginScreen onLogin={async () => {}} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Validate Key' }))
+    fireEvent.click(screen.getByRole('button', { name: 'LOGIN' }))
 
     expect(screen.getByText('Savant API key is required.')).toBeTruthy()
   })
@@ -27,9 +38,9 @@ describe('LoginScreen', () => {
     const input = screen.getByPlaceholderText('sk-...')
     fireEvent.change(input, { target: { value: 'sk-testkey' } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Validate Key' }))
+    fireEvent.click(screen.getByRole('button', { name: 'LOGIN' }))
 
-    expect(onLogin).toHaveBeenCalledWith('sk-testkey')
+    expect(onLogin).toHaveBeenCalledWith('sk-testkey', 'http://127.0.0.1:8090')
   })
 
   it('shows error message if onLogin callback fails', async () => {
@@ -39,7 +50,7 @@ describe('LoginScreen', () => {
     const input = screen.getByPlaceholderText('sk-...')
     fireEvent.change(input, { target: { value: 'sk-bad' } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Validate Key' }))
+    fireEvent.click(screen.getByRole('button', { name: 'LOGIN' }))
 
     await waitFor(() => {
       expect(screen.getByText('Invalid token')).toBeTruthy()
@@ -53,7 +64,7 @@ describe('LoginScreen', () => {
     const input = screen.getByPlaceholderText('sk-...')
     fireEvent.change(input, { target: { value: 'sk-bad' } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Validate Key' }))
+    fireEvent.click(screen.getByRole('button', { name: 'LOGIN' }))
 
     await waitFor(() => {
       expect(screen.getByText('Login failed.')).toBeTruthy()
