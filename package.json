@@ -8,8 +8,9 @@
   "scripts": {
     "start": "electron .",
     "dev": "vite",
-    "build": "tsc && vite build",
-    "package": "npm run build && electron-builder",
+    "build:app": "tsc && vite build",
+    "build": "npm run build:app && electron-builder",
+    "package": "npm run build",
     "preview": "vite preview",
     "rebuild:native": "npm rebuild better-sqlite3 --runtime=electron --target=31.7.7 --dist-url=https://electronjs.org/headers",
     "electron:dev": "npm run rebuild:native && concurrently -k \"npm run dev\" \"node scripts/wait-and-launch-electron.js\"",

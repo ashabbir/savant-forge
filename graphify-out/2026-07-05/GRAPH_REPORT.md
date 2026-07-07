@@ -1,16 +1,16 @@
-# Graph Report - savant-forge  (2026-07-05)
+# Graph Report - savant-forge  (2026-06-25)
 
 ## Corpus Check
-- 49 files · ~55,680 words
+- 47 files · ~52,294 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 505 nodes · 850 edges · 28 communities (25 shown, 3 thin omitted)
+- 472 nodes · 783 edges · 24 communities (21 shown, 3 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 1 edges (avg confidence: 0.9)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `11ae26a6`
+- Built from commit: `1d358ce3`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -37,10 +37,6 @@
 - [[_COMMUNITY_Graphify Knowledge Graph Rules|Graphify Knowledge Graph Rules]]
 - [[_COMMUNITY_Community 22|Community 22]]
 - [[_COMMUNITY_Community 23|Community 23]]
-- [[_COMMUNITY_Community 24|Community 24]]
-- [[_COMMUNITY_Community 25|Community 25]]
-- [[_COMMUNITY_Community 26|Community 26]]
-- [[_COMMUNITY_Community 27|Community 27]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `JiraTicketDB` - 21 edges
@@ -48,23 +44,23 @@
 3. `compilerOptions` - 16 edges
 4. `16. Visual Examples` - 13 edges
 5. `JiraTicket` - 12 edges
-6. `scripts` - 10 edges
-7. `build` - 10 edges
-8. `Squad` - 10 edges
-9. `getStoredApiKey()` - 10 edges
-10. `buildSquadSnapshot()` - 9 edges
+6. `build` - 10 edges
+7. `Squad` - 10 edges
+8. `getStoredApiKey()` - 10 edges
+9. `buildSquadSnapshot()` - 9 edges
+10. `scripts` - 8 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `AddTicketModalProps` --references--> `JiraTicket`  [EXTRACTED]
   src/renderer/components/AddTicketModal.tsx → src/renderer/services/localState.ts
-- `PMPanelProps` --references--> `JiraTicket`  [EXTRACTED]
-  src/renderer/components/ProductManagerPanel.tsx → src/renderer/services/localState.ts
-- `PMPanelProps` --references--> `PRDDocument`  [EXTRACTED]
-  src/renderer/components/ProductManagerPanel.tsx → src/renderer/services/localState.ts
-- `PMPanelProps` --references--> `Squad`  [EXTRACTED]
-  src/renderer/components/ProductManagerPanel.tsx → src/renderer/services/localState.ts
-- `SquadCockpitProps` --references--> `JiraTicket`  [EXTRACTED]
-  src/renderer/components/SquadCockpit.tsx → src/renderer/services/localState.ts
+- `createBlankDeveloperDraft()` --calls--> `describeSpecialties()`  [EXTRACTED]
+  src/renderer/App.tsx → src/renderer/components/DeveloperSpecialties.tsx
+- `createBlankDeveloperDraft()` --calls--> `normalizeSpecialtyTags()`  [EXTRACTED]
+  src/renderer/App.tsx → src/renderer/components/DeveloperSpecialties.tsx
+- `fromDeveloper()` --calls--> `describeSpecialties()`  [EXTRACTED]
+  src/renderer/App.tsx → src/renderer/components/DeveloperSpecialties.tsx
+- `fromDeveloper()` --calls--> `normalizeSpecialtyTags()`  [EXTRACTED]
+  src/renderer/App.tsx → src/renderer/components/DeveloperSpecialties.tsx
 
 ## Import Cycles
 - None detected.
@@ -72,23 +68,23 @@
 ## Hyperedges (group relationships)
 - **Sanctum Design System Guidelines** — style_guide_app_shell, style_guide_visual_system, style_guide_typography, style_guide_color_palette, style_guide_right_rail_drawer [EXTRACTED 0.95]
 
-## Communities (28 total, 3 thin omitted)
+## Communities (24 total, 3 thin omitted)
 
 ### Community 0 - "Local State & Sprint Metrics Service"
 Cohesion: 0.07
 Nodes (53): buildSquadSnapshot(), CompanyHoliday, computeCarryoverPoints(), computeDeveloperAvailability(), computeVelocity(), countEventDays(), createTicketLocal(), DEFAULT_WORKING_DAYS (+45 more)
 
 ### Community 1 - "Left Rail & Login Components"
-Cohesion: 0.06
-Nodes (19): describeSpecialties(), normalizeSpecialtyTags(), LeftRail(), LeftRailProps, LoginScreen(), LoginScreenProps, LogoutConfirmModal(), LogoutConfirmModalProps (+11 more)
+Cohesion: 0.07
+Nodes (18): describeSpecialties(), normalizeSpecialtyTags(), LeftRail(), LeftRailProps, LoginScreen(), LoginScreenProps, LogoutConfirmModal(), LogoutConfirmModalProps (+10 more)
 
 ### Community 2 - "Electron Main Process"
-Cohesion: 0.05
-Nodes (42): author, dependencies, better-sqlite3, lucide-react, react, react-dom, description, devDependencies (+34 more)
+Cohesion: 0.04
+Nodes (44): createTray(), createWindow(), resolveAsset(), SavantShellConfig, shellConfig, author, dependencies, lucide-react (+36 more)
 
 ### Community 3 - "Sprint Cockpit & Ticket Modals"
-Cohesion: 0.12
-Nodes (14): fieldLabelStyle, inlineButtonStyle(), inputStyle, panelBodyStyle, panelCardStyle, panelHeaderStyle, primaryButtonStyle, secondaryButtonStyle (+6 more)
+Cohesion: 0.06
+Nodes (31): AddTicketModal(), AddTicketModalProps, PMPanelProps, PMView, ProductManagerPanel(), fieldLabelStyle, inlineButtonStyle(), inputStyle (+23 more)
 
 ### Community 4 - "Sprint Workbench UI Panels"
 Cohesion: 0.08
@@ -127,8 +123,8 @@ Cohesion: 0.31
 Nodes (6): Sanctum App Shell Layout, Sanctum Color Palette, Local Database and Authentication Surface, Right Rail Drawer Interaction, Sanctum Typography System, Sanctum Visual System
 
 ### Community 13 - "Athena Context & LLM Prompting"
-Cohesion: 0.33
-Nodes (9): ATHENA_SYSTEM_DIRECTIVE, AthenaContextHit, AthenaTool, buildAthenaPromptSections(), fetchAthenaCodeContext(), fetchAthenaMcpTools(), formatAthenaContextHits(), getAthenaSystem() (+1 more)
+Cohesion: 0.39
+Nodes (7): ATHENA_SYSTEM_DIRECTIVE, AthenaContextHit, buildAthenaPromptSections(), fetchAthenaCodeContext(), fetchAthenaMcpTools(), formatAthenaContextHits(), resolveAthenaPersona()
 
 ### Community 15 - "Module Definition & Navigation System"
 Cohesion: 0.38
@@ -147,27 +143,11 @@ Cohesion: 0.13
 Nodes (3): JiraTicketDB, JiraTicketDB — PostgreSQL backend., Return full Jira ticket records linked to a session (JOIN with jira_tickets).
 
 ### Community 23 - "Community 23"
-Cohesion: 0.23
-Nodes (20): AnyArray, appendAthenaThreadMessage(), AthenaContextKind, AthenaRunRecord, AthenaThread, AthenaThreadMessage, deleteAthenaThreadMessage(), dispatchChange() (+12 more)
-
-### Community 24 - "Community 24"
-Cohesion: 0.14
-Nodes (24): AthenaContextKind, AthenaRunRecord, AthenaThread, AthenaThreadMessage, db, loadAthenaRuns(), loadAthenaThreads(), normalizeRun() (+16 more)
-
-### Community 25 - "Community 25"
-Cohesion: 0.10
-Nodes (12): healthColors, PMDrawerMode, PMPanelProps, PMSelection, ProductManagerPanel(), deleteFeatureRequest(), FeatureRequest, getFeatureRequests() (+4 more)
-
-### Community 26 - "Community 26"
-Cohesion: 0.38
-Nodes (5): SquadCockpitProps, Developer, PRDDocument, SprintPlan, Squad
-
-### Community 27 - "Community 27"
-Cohesion: 0.60
-Nodes (3): AddTicketModal(), AddTicketModalProps, JiraTicket
+Cohesion: 0.24
+Nodes (19): AnyArray, appendAthenaThreadMessage(), AthenaContextKind, AthenaRunRecord, AthenaThread, AthenaThreadMessage, deleteAthenaThreadMessage(), dispatchChange() (+11 more)
 
 ## Knowledge Gaps
-- **190 isolated node(s):** `name`, `version`, `description`, `author`, `main` (+185 more)
+- **177 isolated node(s):** `name`, `version`, `description`, `author`, `main` (+172 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **3 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -175,16 +155,16 @@ Nodes (3): AddTicketModal(), AddTicketModalProps, JiraTicket
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Forge Style Guide` connect `Athena AI Store & Memory Management` to `Project Dependencies & Tooling`, `Sanctum App Design & Layout System`?**
-  _High betweenness centrality (0.131) - this node is a cross-community bridge._
+  _High betweenness centrality (0.146) - this node is a cross-community bridge._
 - **What connects `JiraTicketDB — PostgreSQL backend.`, `Return full Jira ticket records linked to a session (JOIN with jira_tickets).`, `name` to the rest of the system?**
-  _196 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _183 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Local State & Sprint Metrics Service` be split into smaller, more focused modules?**
-  _Cohesion score 0.07188778492109878 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07071887784921099 - nodes in this community are weakly interconnected._
 - **Should `Left Rail & Login Components` be split into smaller, more focused modules?**
-  _Cohesion score 0.06423034330011074 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06620209059233449 - nodes in this community are weakly interconnected._
 - **Should `Electron Main Process` be split into smaller, more focused modules?**
-  _Cohesion score 0.046511627906976744 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.04440333024976873 - nodes in this community are weakly interconnected._
 - **Should `Sprint Cockpit & Ticket Modals` be split into smaller, more focused modules?**
-  _Cohesion score 0.12418300653594772 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06207482993197279 - nodes in this community are weakly interconnected._
 - **Should `Sprint Workbench UI Panels` be split into smaller, more focused modules?**
   _Cohesion score 0.07977207977207977 - nodes in this community are weakly interconnected._
