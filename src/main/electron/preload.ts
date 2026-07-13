@@ -28,5 +28,12 @@ contextBridge.exposeInMainWorld('system', {
   runAgentViaGateway: (payload: Record<string, unknown>): Promise<unknown> =>
     ipcRenderer.invoke('athena:run-gateway', payload),
   killAthenaRun: (runId: string): Promise<void> =>
-    ipcRenderer.invoke('athena:kill-run', runId)
+    ipcRenderer.invoke('athena:kill-run', runId),
+  onAthenaRunEvent: (callback: (data: { runId: string; tempRunId?: string; event: any }) => void): (() => void) => {
+    const listener = (_event: any, data: any) => callback(data)
+    ipcRenderer.on('athena:run-event', listener)
+    return () => {
+      ipcRenderer.removeListener('athena:run-event', listener)
+    }
+  }
 })

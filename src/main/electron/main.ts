@@ -138,10 +138,14 @@ function registerAthenaIpc() {
   })
   ipcMain.handle('athena:run-gateway', async (_event, payload) => {
     const gatewayUrl = process.env.SAVANT_GATEWAY_URL || 'http://127.0.0.1:3100'
+    
+    // Remove transient properties not expected by the gateway endpoint
+    const { tempRunId, workspace_id, contextKey, contextKind, ...gatewayPayload } = payload
+
     const response = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(gatewayPayload),
       signal: AbortSignal.timeout(30000)
     })
     if (!response.ok) {
@@ -150,6 +154,41 @@ function registerAthenaIpc() {
     const runData = await response.json()
     const runId = String(runData.id || '')
     if (!runId) return runData
+
+    const tRunId = String(tempRunId || '')
+    const provider = String(payload.chain?.[0]?.provider || 'codex')
+    const model = String(payload.chain?.[0]?.model || 'gpt-5-codex')
+    const cKey = String(contextKey || 'global')
+    const cKind = String(contextKind || 'global')
+
+    // Broadcast started event with real runId and tempRunId association
+    if (win) {
+      win.webContents.send('athena:run-event', {
+        runId,
+        tempRunId: tRunId,
+        event: { type: 'started', runId, tempRunId: tRunId }
+      })
+    }
+
+    try {
+      upsertAthenaRun({
+        id: runId,
+        provider,
+        model,
+        status: 'running',
+        startedAt: new Date().toISOString(),
+        prompt: String(payload.prompt || ''),
+        message: '',
+        events: [{ type: 'thinking', status: 'running', provider, model, reason: 'initiating stream' }],
+        source: 'gateway',
+        app: 'forge',
+        workspace_id: String(workspace_id || ''),
+        contextKey: cKey,
+        contextKind: cKind as any
+      })
+    } catch (dbErr) {
+      console.error('Failed to pre-insert run in SQLite:', dbErr)
+    }
 
     try {
       const streamResponse = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs/${runId}/stream`)
@@ -179,6 +218,19 @@ function registerAthenaIpc() {
               if (eventPayload?.type === 'complete') {
                 assistantText = String(eventPayload.content || eventPayload.message || assistantText || '')
               }
+
+              // Send event to renderer
+              if (win && eventPayload) {
+                win.webContents.send('athena:run-event', { runId, tempRunId: tRunId, event: eventPayload })
+              }
+
+              // Save event in DB if it's not a text chunk
+              if (eventPayload && eventPayload.type !== 'chunk') {
+                updateAthenaRun(runId, (run) => ({
+                  ...run,
+                  events: [...(run.events || []), eventPayload]
+                }))
+              }
             } catch {
               // Ignore malformed stream frames and continue consuming.
             }
@@ -187,8 +239,24 @@ function registerAthenaIpc() {
         }
       }
 
+      if (win) {
+        win.webContents.send('athena:run-event', {
+          runId,
+          tempRunId: tRunId,
+          event: { type: 'complete', status: 'complete', content: assistantText }
+        })
+      }
+
       return { ...runData, message: assistantText || runData.message || '' }
-    } catch {
+    } catch (streamErr) {
+      console.error('Error streaming run:', streamErr)
+      if (win) {
+        win.webContents.send('athena:run-event', {
+          runId,
+          tempRunId: tRunId,
+          event: { type: 'error', status: 'error', message: streamErr instanceof Error ? streamErr.message : String(streamErr) }
+        })
+      }
       return runData
     }
   })

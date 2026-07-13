@@ -1710,3 +1710,391 @@ h3 {
     grid-template-columns: 1.15fr 0.85fr;
   }
 }
+
+/* =========================================================
+   ATHENA CHAT & EVENT VIEWER STYLES
+   ========================================================= */
+
+.athena-chat-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+}
+
+.athena-chat-header {
+  font-size: 10px;
+  color: var(--section-label);
+  font-family: 'Share Tech Mono', monospace;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--cp-cyan);
+}
+
+.athena-chat-bot-icon {
+  color: var(--cp-cyan);
+}
+
+.athena-chat-context {
+  background: var(--cp-bg-2);
+  border: 1px solid var(--cp-border);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.athena-chat-context-label {
+  font-size: 9px;
+  color: var(--section-label);
+  font-family: 'Share Tech Mono', monospace;
+  margin-bottom: 4px;
+}
+
+.athena-chat-context-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--foreground);
+  margin-bottom: 4px;
+}
+
+.athena-chat-context-summary {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.athena-chat-meta-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.athena-meta-badge {
+  font-size: 9px;
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--foreground);
+  background: var(--cp-bg-3);
+  border: 1px solid var(--cp-border);
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.athena-chat-viewport {
+  flex: 1;
+  background: var(--cp-bg-2);
+  border: 1px solid var(--cp-border);
+  padding: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 420px;
+}
+
+.athena-msg-row {
+  display: flex;
+  gap: 8px;
+  max-width: 95%;
+}
+
+.athena-msg-row.user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.athena-msg-row.assistant {
+  align-self: flex-start;
+}
+
+.athena-msg-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 2px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  margin-top: 14px;
+  font-size: 10px;
+}
+
+.athena-msg-row.user .athena-msg-avatar {
+  background: rgba(0, 229, 255, 0.12);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  color: var(--cp-cyan);
+}
+
+.athena-msg-row.assistant .athena-msg-avatar {
+  background: rgba(255, 0, 85, 0.08);
+  border: 1px solid rgba(255, 0, 85, 0.2);
+  color: var(--cp-magenta);
+}
+
+.athena-msg-bubble-container {
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100% - 28px);
+}
+
+.athena-msg-meta {
+  font-size: 9px;
+  color: var(--muted-foreground);
+  margin-bottom: 2px;
+  font-family: 'Share Tech Mono', monospace;
+  opacity: 0.65;
+}
+
+.athena-msg-row.user .athena-msg-meta {
+  text-align: right;
+}
+
+.athena-msg-bubble {
+  border-radius: 2px;
+  font-size: 11px;
+  color: var(--foreground);
+  line-height: 1.45;
+  word-break: break-word;
+  position: relative;
+}
+
+.athena-msg-bubble.user {
+  background: rgba(0, 229, 255, 0.06);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  padding: 8px 10px;
+}
+
+.athena-msg-bubble.assistant {
+  background: var(--cp-bg-3);
+  border: 1px solid var(--cp-border);
+  padding: 8px 10px;
+}
+
+.athena-msg-content-wrapper {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.athena-msg-text {
+  min-width: 0;
+  flex: 1;
+}
+
+/* Hover actions styling */
+.athena-msg-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.athena-msg-bubble:hover .athena-msg-actions {
+  opacity: 1;
+}
+
+.athena-msg-action-btn {
+  background: transparent;
+  border: 1px solid var(--cp-border);
+  padding: 2px 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 1px;
+}
+
+.athena-msg-action-btn.copy {
+  color: var(--cp-cyan);
+}
+
+.athena-msg-action-btn.copy:hover {
+  background: rgba(0, 229, 255, 0.1);
+  border-color: var(--cp-cyan);
+}
+
+.athena-msg-action-btn.delete {
+  color: var(--cp-magenta);
+  border-color: rgba(255, 34, 68, 0.35);
+}
+
+.athena-msg-action-btn.delete:hover {
+  background: rgba(255, 34, 68, 0.1);
+  border-color: var(--cp-magenta);
+}
+
+/* Input Form */
+.athena-chat-input-form {
+  margin-top: 8px;
+  display: flex;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-bg-3);
+}
+
+.athena-chat-input-field {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  color: var(--foreground);
+  padding: 6px 8px;
+  font-size: 11px;
+  font-family: 'Share Tech Mono', monospace;
+  outline: none;
+}
+
+.athena-chat-submit-btn {
+  background: var(--cp-cyan);
+  color: var(--cp-bg-0);
+  border: 0;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.athena-chat-submit-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.athena-chat-submit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Markdown prose rendering overrides specifically for Athena Chat */
+.athena-markdown-content p {
+  margin-bottom: 8px;
+}
+.athena-markdown-content p:last-child {
+  margin-bottom: 0;
+}
+.athena-markdown-content ul {
+  list-style-type: disc;
+  padding-left: 16px;
+  margin-bottom: 8px;
+}
+.athena-markdown-content ol {
+  list-style-type: decimal;
+  padding-left: 16px;
+  margin-bottom: 8px;
+}
+.athena-markdown-content li {
+  margin-bottom: 4px;
+}
+.athena-markdown-content pre {
+  background: var(--cp-bg-1) !important;
+  border: 1px solid var(--cp-border);
+  padding: 6px 8px;
+  margin: 6px 0;
+  border-radius: 2px;
+  overflow-x: auto;
+}
+.athena-markdown-content code {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+.athena-markdown-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+/* Cyberpunk Active Agent Processing Indicator */
+.run-events-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(0, 20, 35, 0.7);
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  border-radius: 3px;
+  padding: 8px 10px;
+  margin-top: 8px;
+  max-height: 250px;
+  overflow-y: auto;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: rgba(220, 240, 255, 0.85);
+  align-self: stretch;
+}
+
+.run-events-header {
+  color: var(--cp-cyan);
+  font-weight: bold;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.1);
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.run-event {
+  padding: 2px 0;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.run-event-thinking {
+  color: rgba(100, 180, 255, 0.9);
+}
+
+.run-event-call {
+  color: #ffea00;
+}
+
+.run-event-response {
+  color: #00ff88;
+}
+
+.run-event-complete {
+  color: #00ff88;
+  font-weight: bold;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 4px;
+  margin-top: 4px;
+}
+
+.run-event-error {
+  color: #ff0055;
+  font-weight: bold;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 4px;
+  margin-top: 4px;
+}
+
+.tool-name {
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.tool-args,
+.tool-response-content {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 4px;
+  margin: 2px 0 4px 10px;
+  max-height: 80px;
+  overflow-y: auto;
+  font-size: 9px;
+  color: rgba(200, 220, 240, 0.7);
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.running-dots {
+  display: inline-block;
+  animation: typing-blink 1.4s infinite both;
+}
+
+@keyframes typing-blink {
+  0% { opacity: 0.2; }
+  20% { opacity: 1; }
+  100% { opacity: 0.2; }
+}

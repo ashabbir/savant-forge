@@ -1,18 +1,13 @@
-# Graph Report - savant-forge  (2026-07-12)
+# Graph Report - .  (2026-07-12)
 
 ## Corpus Check
-- 49 files · ~56,140 words
+- 26 files · ~55,680 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 523 nodes · 896 edges · 38 communities (31 shown, 7 thin omitted)
+- 519 nodes · 892 edges · 35 communities (28 shown, 7 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 8 edges (avg confidence: 0.86)
 - Token cost: 0 input · 0 output
-
-## Graph Freshness
-- Built from commit: `843fae6e`
-- Run `git rev-parse HEAD` and compare to check if the graph is stale.
-- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_Squad State & Metrics|Squad State & Metrics]]
@@ -48,9 +43,6 @@
 - [[_COMMUNITY_LoginScreen Tests|LoginScreen Tests]]
 - [[_COMMUNITY_SprintWorkbenchPanel Tests|SprintWorkbenchPanel Tests]]
 - [[_COMMUNITY_Vite Build Setup|Vite Build Setup]]
-- [[_COMMUNITY_Community 35|Community 35]]
-- [[_COMMUNITY_Community 36|Community 36]]
-- [[_COMMUNITY_Community 37|Community 37]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `JiraTicketDB` - 22 edges
@@ -85,7 +77,7 @@
 - **Forge Main Views** — components_loginscreen_loginscreen, components_productmanagerpanel_productmanagerpanel, components_sprintworkbenchpanel_sprintworkbenchpanel [INFERRED 0.95]
 - **Squad Cockpit UI components** — components_squadcockpit_squadcockpit, components_squadstatspanel_squadstatspanel, services_localstate_buildsquadsnapshot [INFERRED 0.85]
 
-## Communities (38 total, 7 thin omitted)
+## Communities (35 total, 7 thin omitted)
 
 ### Community 0 - "Squad State & Metrics"
 Cohesion: 0.08
@@ -96,12 +88,12 @@ Cohesion: 0.06
 Nodes (29): Athena Context Awareness, AddTicketModal(), DeveloperModal(), describeSpecialties(), normalizeSpecialtyTags(), LeftRail(), LeftRailProps, LoginScreen() (+21 more)
 
 ### Community 2 - "Product Manager Workspace"
-Cohesion: 0.11
-Nodes (11): healthColors, PMDrawerMode, PMPanelProps, PMSelection, deleteFeatureRequest(), FeatureRequest, getFeatureRequests(), getFeatureRequestsByProject() (+3 more)
+Cohesion: 0.06
+Nodes (36): AddTicketModalProps, healthColors, PMDrawerMode, PMPanelProps, PMSelection, calculateWorkingDaysBetween(), fieldLabelStyle, getEndDateFromWorkingDays() (+28 more)
 
 ### Community 3 - "Node Package Configuration"
-Cohesion: 0.06
-Nodes (30): author, dependencies, better-sqlite3, lucide-react, react, react-dom, react-markdown, react-syntax-highlighter (+22 more)
+Cohesion: 0.05
+Nodes (42): author, dependencies, better-sqlite3, lucide-react, react, react-dom, description, devDependencies (+34 more)
 
 ### Community 4 - "Local SQLite DB & IPC"
 Cohesion: 0.13
@@ -191,20 +183,8 @@ Nodes (4): 9.1 Loading, 9.2 Empty States, 9.3 Error States, 9. State and Feedbac
 Cohesion: 0.67
 Nodes (3): 5.1 Primary Hierarchy, 5.2 Secondary Hierarchy, 5. Navigation and Information Hierarchy
 
-### Community 35 - "Community 35"
-Cohesion: 0.12
-Nodes (18): calculateWorkingDaysBetween(), fieldLabelStyle, getEndDateFromWorkingDays(), inlineButtonStyle(), inputStyle, panelBodyStyle, panelCardStyle, panelHeaderStyle (+10 more)
-
-### Community 36 - "Community 36"
-Cohesion: 0.12
-Nodes (16): devDependencies, concurrently, electron, electron-builder, jsdom, @testing-library/react, @types/react, @types/react-dom (+8 more)
-
-### Community 37 - "Community 37"
-Cohesion: 0.33
-Nodes (7): AddTicketModalProps, SquadCockpitProps, Developer, JiraTicket, PRDDocument, SprintPlan, Squad
-
 ## Knowledge Gaps
-- **200 isolated node(s):** `name`, `version`, `description`, `author`, `main` (+195 more)
+- **196 isolated node(s):** `name`, `version`, `description`, `author`, `main` (+191 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -212,16 +192,16 @@ Nodes (7): AddTicketModalProps, SquadCockpitProps, Developer, JiraTicket, PRDDoc
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Forge Style Guide` connect `Design Framing & Notes` to `UI Layout Examples`, `App Core & Style Guide`, `Layout Model Spec`, `Component Pattern Spec`, `Visual Style Spec`, `Shell Layout Spec`, `State Feedback Spec`, `Navigation Hierarchy Spec`?**
-  _High betweenness centrality (0.135) - this node is a cross-community bridge._
-- **Why does `SprintWorkbenchPanel()` connect `Sprint Workbench Component` to `App Screens & Modals`, `Community 37`, `Jira SQLite Integration`?**
-  _High betweenness centrality (0.065) - this node is a cross-community bridge._
+  _High betweenness centrality (0.137) - this node is a cross-community bridge._
+- **Why does `SprintWorkbenchPanel()` connect `Sprint Workbench Component` to `App Screens & Modals`, `Product Manager Workspace`, `Jira SQLite Integration`?**
+  _High betweenness centrality (0.066) - this node is a cross-community bridge._
 - **Why does `JiraTicketDB` connect `Jira SQLite Integration` to `Sprint Workbench Component`?**
-  _High betweenness centrality (0.061) - this node is a cross-community bridge._
+  _High betweenness centrality (0.062) - this node is a cross-community bridge._
 - **What connects `JiraTicketDB — PostgreSQL backend.`, `Return full Jira ticket records linked to a session (JOIN with jira_tickets).`, `name` to the rest of the system?**
-  _209 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _205 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Squad State & Metrics` be split into smaller, more focused modules?**
   _Cohesion score 0.07581453634085213 - nodes in this community are weakly interconnected._
 - **Should `App Screens & Modals` be split into smaller, more focused modules?**
   _Cohesion score 0.0573025856044724 - nodes in this community are weakly interconnected._
 - **Should `Product Manager Workspace` be split into smaller, more focused modules?**
-  _Cohesion score 0.1067193675889328 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05731523378582202 - nodes in this community are weakly interconnected._

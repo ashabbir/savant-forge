@@ -1,4 +1,6 @@
 import { useState, useEffect, FormEvent, useRef, useMemo, useCallback, type CSSProperties } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   Users,
   Layers,
@@ -397,6 +399,57 @@ function getDeveloperSquadId(config: ForgeConfig | null, developerId: string) {
 function App() {
   const runtime = window.savantShell || fallbackRuntime
   
+  const renderAthenaRunEvent = (ev: any, idx: number) => {
+    if (ev.type === 'thinking') {
+      return (
+        <div key={idx} className="run-event run-event-thinking">
+          &gt; [{ev.provider || 'codex'}] {ev.status || 'deliberating'}{ev.reason ? ` — ${ev.reason}` : ''}
+          {ev.status === 'running' && <span className="running-dots">...</span>}
+        </div>
+      )
+    }
+    if (ev.type === 'call') {
+      return (
+        <div key={idx} className="run-event run-event-call">
+          🔧 Calling tool: <span className="tool-name">{ev.name || 'unknown'}</span>
+          {ev.arguments && (
+            <pre className="tool-args">{typeof ev.arguments === 'string' ? ev.arguments : JSON.stringify(ev.arguments, null, 2)}</pre>
+          )}
+        </div>
+      )
+    }
+    if (ev.type === 'response') {
+      return (
+        <div key={idx} className="run-event run-event-response">
+          ✅ Tool response from: <span className="tool-name">{ev.name || 'unknown'}</span>
+          {ev.content && (
+            <pre className="tool-response-content">
+              {typeof ev.content === 'string' 
+                ? (ev.content.length > 300 ? ev.content.slice(0, 300) + '...' : ev.content)
+                : (JSON.stringify(ev.content, null, 2).length > 300 ? JSON.stringify(ev.content, null, 2).slice(0, 300) + '...' : JSON.stringify(ev.content, null, 2))
+              }
+            </pre>
+          )}
+        </div>
+      )
+    }
+    if (ev.type === 'complete') {
+      return (
+        <div key={idx} className="run-event run-event-complete">
+          &gt; Athena run complete.
+        </div>
+      )
+    }
+    if (ev.type === 'error') {
+      return (
+        <div key={idx} className="run-event run-event-error">
+          🛑 Error: {ev.message || ev.content || 'Run failed'}
+        </div>
+      )
+    }
+    return null
+  }
+  
   const [serverUrl, setServerUrl] = useState(() => {
     return localStorage.getItem('savant_server_url') || runtime.serverUrl
   })
@@ -500,6 +553,8 @@ function App() {
   const [chatInput, setChatInput] = useState('')
   const [isAiLoading, setIsAiLoading] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const [activeRunId, setActiveRunId] = useState<string | null>(null)
+  const [activeRunEvents, setActiveRunEvents] = useState<any[]>([])
 
   // New ticket modal/form states
   const [newTicketTitle, setNewTicketTitle] = useState('')
@@ -1031,6 +1086,11 @@ function App() {
     setIsAiLoading(true)
 
     const tempRunId = `run_${Date.now()}`
+    const provider = config?.athena_provider || 'codex'
+    const model = config?.athena_model || 'gpt-5-codex'
+
+    setActiveRunId(tempRunId)
+    setActiveRunEvents([{ type: 'thinking', status: 'running', provider, model, reason: 'initiating request' }])
 
     try {
       const mcpTools = await fetchAthenaMcpTools(serverUrl, getStoredApiKey() || 'test-key')
@@ -1138,7 +1198,9 @@ function App() {
         cwd: '/Users/home/code/project-x/savant-forge',
         contextKey: athenaContextProfile.key,
         contextKind: athenaContextProfile.kind,
-        threadId
+        threadId,
+        tempRunId,
+        workspace_id: FORGE_WORKSPACE_ID
       })
 
       const runId = String((runData as any)?.id || tempRunId)
@@ -1178,7 +1240,10 @@ function App() {
         text: finalText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }])
+      
       setIsAiLoading(false)
+      setActiveRunId(null)
+      setActiveRunEvents([])
 
     } catch (e: any) {
       console.error(e)
@@ -1204,7 +1269,10 @@ function App() {
         text: `Athena error: ${errMessage}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }])
+      
       setIsAiLoading(false)
+      setActiveRunId(null)
+      setActiveRunEvents([])
       setAthenaThreadActiveRun(threadId, '')
     }
   }
@@ -1559,6 +1627,50 @@ function App() {
       window.removeEventListener('storage', refreshAthenaThreads)
     }
   }, [])
+
+  useEffect(() => {
+    if (!window.system?.onAthenaRunEvent) return
+
+    const unsubscribe = window.system.onAthenaRunEvent((data) => {
+      const { runId, tempRunId, event } = data
+      
+      setActiveRunId((currentActiveRunId) => {
+        if (!currentActiveRunId) return currentActiveRunId
+
+        // If we get a 'started' event and the tempRunId matches, swap activeRunId to the real runId
+        if (event?.type === 'started' && tempRunId && currentActiveRunId === tempRunId) {
+          const threadId = activeAthenaThreadId || (athenaContextProfile ? `athena-thread-${athenaContextProfile.key}` : '')
+          if (threadId) {
+            setAthenaThreadActiveRun(threadId, runId)
+          }
+          setActiveRunEvents([{ type: 'thinking', status: 'running', reason: 'initiating stream' }])
+          return runId
+        }
+
+        // If this event belongs to our active run
+        if (currentActiveRunId === runId || currentActiveRunId === tempRunId) {
+          if (event?.type === 'chunk') {
+            // Text chunks are streamed directly, we skip showing them in the logs.
+            return currentActiveRunId
+          }
+          
+          setActiveRunEvents((prevEvents) => {
+            const isDuplicate = prevEvents.some(
+              (pe) => pe.type === event.type && pe.status === event.status && pe.reason === event.reason && pe.name === event.name
+            )
+            if (isDuplicate) return prevEvents
+            return [...prevEvents, event]
+          })
+        }
+
+        return currentActiveRunId
+      })
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [activeAthenaThreadId, athenaContextProfile])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -2436,96 +2548,61 @@ function App() {
                 </div>
               )}
               {rightPanelTab === 'athena-chat' && (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', height: '100%' }}>
-                  <div style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '8px' }}>
-                    ATHENA PM COPILOT CONVERSATION
+                <div className="athena-chat-panel">
+                  <div className="athena-chat-header">
+                    <Bot size={12} className="athena-chat-bot-icon" />
+                    <span>ATHENA PM COPILOT CONVERSATION</span>
                   </div>
-                  <div style={{ background: 'var(--cp-bg-2)', border: '1px solid var(--cp-border)', padding: '8px 10px', marginBottom: '8px' }}>
-                    <div style={{ fontSize: '9px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '4px' }}>
-                      ACTIVE CONTEXT
-                    </div>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--foreground)', marginBottom: '4px' }}>
-                      {athenaContextProfile.title}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted-foreground)', whiteSpace: 'pre-wrap', lineHeight: '1.45' }}>
-                      {athenaContextProfile.summary}
-                    </div>
+                  <div className="athena-chat-context">
+                    <div className="athena-chat-context-label">ACTIVE CONTEXT</div>
+                    <div className="athena-chat-context-title">{athenaContextProfile.title}</div>
+                    <div className="athena-chat-context-summary">{athenaContextProfile.summary}</div>
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                    <StatusBadge label={`PERSONA: ${athenaPersona.name}`} />
-                    <StatusBadge label={`PROVIDER: ${config?.athena_provider || 'codex'}`} />
-                    <StatusBadge label={`MODEL: ${config?.athena_model || 'gpt-5-codex'}`} />
+                  <div className="athena-chat-meta-row">
+                    <span className="athena-meta-badge">PERSONA: {athenaPersona.name}</span>
+                    <span className="athena-meta-badge">PROVIDER: {config?.athena_provider || 'codex'}</span>
+                    <span className="athena-meta-badge">MODEL: {config?.athena_model || 'gpt-5-codex'}</span>
                   </div>
                   {/* Chat messages viewport */}
-                  <div 
-                    style={{ 
-                      flex: 1, 
-                      background: 'var(--cp-bg-2)', 
-                      border: '1px solid var(--cp-border)',
-                      padding: '10px',
-                      overflowY: 'auto',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '10px',
-                      maxHeight: '420px'
-                    }}
-                  >
+                  <div className="athena-chat-viewport">
                     {chatMessages.map(msg => (
-                      <div key={msg.id} style={{ display: 'flex', gap: '6px', justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start' }}>
-                        <div style={{ maxWidth: '90%' }}>
-                          <div style={{ fontSize: '9px', color: 'var(--muted-foreground)', marginBottom: '2px', fontFamily: "'Share Tech Mono', monospace" }}>
+                      <div key={msg.id} className={`athena-msg-row ${msg.sender === 'user' ? 'user' : 'assistant'}`}>
+                        <div className="athena-msg-avatar">
+                          {msg.sender === 'user' ? <UserRound size={12} /> : <Bot size={12} />}
+                        </div>
+                        <div className="athena-msg-bubble-container">
+                          <div className="athena-msg-meta">
                             {msg.sender === 'assistant' ? 'ATHENA' : 'OPERATOR'} · {msg.timestamp}
                           </div>
-                          <div 
-                            style={{ 
-                              background: msg.sender === 'user' ? 'rgba(0, 229, 255, 0.08)' : 'var(--cp-bg-3)',
-                              border: msg.sender === 'user' ? '1px solid rgba(0, 229, 255, 0.2)' : '1px solid var(--cp-border)',
-                              padding: '8px 10px',
-                              borderRadius: '2px',
-                              fontSize: '12px',
-                              color: 'var(--foreground)',
-                              lineHeight: '1.4',
-                              wordBreak: 'break-word'
-                            }}
-                          >
-                            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                              <div style={{ minWidth: 0, flex: 1 }}>{msg.text}</div>
-                              <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                          <div className={`athena-msg-bubble ${msg.sender === 'user' ? 'user' : 'assistant'}`}>
+                            <div className="athena-msg-content-wrapper">
+                              <div className="athena-msg-text">
+                                {msg.sender === 'user' ? (
+                                  <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
+                                ) : (
+                                  <div className="athena-markdown-content text-[11px] leading-relaxed">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="athena-msg-actions">
                                 <button
                                   type="button"
                                   onClick={() => handleCopyAthenaMessage(msg.text)}
                                   title="Copy message"
                                   aria-label="Copy message"
-                                  style={{
-                                    background: 'transparent',
-                                    border: '1px solid var(--cp-border)',
-                                    color: 'var(--cp-cyan)',
-                                    padding: '2px 4px',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer'
-                                  }}
+                                  className="athena-msg-action-btn copy"
                                 >
-                                  <Copy size={10} />
+                                  <Copy size={9} />
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteAthenaMessage(msg.id)}
                                   title="Delete message"
                                   aria-label="Delete message"
-                                  style={{
-                                    background: 'transparent',
-                                    border: '1px solid rgba(255, 34, 68, 0.45)',
-                                    color: 'var(--cp-magenta)',
-                                    padding: '2px 4px',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer'
-                                  }}
+                                  className="athena-msg-action-btn delete"
                                 >
-                                  <Trash2 size={10} />
+                                  <Trash2 size={9} />
                                 </button>
                               </div>
                             </div>
@@ -2534,46 +2611,33 @@ function App() {
                       </div>
                     ))}
                     {isAiLoading && (
-                      <div style={{ color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Loader size={10} className="animate-spin" /> deliberation...
+                      <div className="run-events-container">
+                        <div className="run-events-header">
+                          <span>ATHENA_ACTIVE_PROCESS</span>
+                          <span className="running-dots">...</span>
+                        </div>
+                        {activeRunEvents.map((ev, idx) => renderAthenaRunEvent(ev, idx))}
                       </div>
                     )}
                     <div ref={chatEndRef} />
                   </div>
 
                   {/* Chat input box */}
-                  <form onSubmit={handleSendAthenaMessage} style={{ marginTop: '8px', display: 'flex', border: '1px solid var(--cp-border)' }}>
+                  <form onSubmit={handleSendAthenaMessage} className="athena-chat-input-form">
                     <input 
                       type="text"
                       placeholder="ask athena..."
                       value={chatInput}
                       onChange={e => setChatInput(e.target.value)}
                       disabled={isAiLoading}
-                      style={{
-                        flex: 1,
-                        background: 'var(--cp-bg-3)',
-                        border: 0,
-                        color: 'var(--foreground)',
-                        padding: '6px 8px',
-                        fontSize: '11px',
-                        fontFamily: "'Share Tech Mono', monospace",
-                        outline: 'none'
-                      }}
+                      className="athena-chat-input-field"
                     />
                     <button 
                       type="submit"
                       disabled={isAiLoading}
-                      style={{
-                        background: 'var(--cp-cyan)',
-                        color: 'var(--cp-bg-0)',
-                        border: 0,
-                        padding: '0 10px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
+                      className="athena-chat-submit-btn"
                     >
-                      <Send size={11} />
+                      <Send size={10} />
                     </button>
                   </form>
                 </div>

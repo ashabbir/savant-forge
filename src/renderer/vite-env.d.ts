@@ -22,5 +22,6 @@ interface Window {
     loadAthenaMcpTools: () => Promise<Array<{ name: string; description: string }>>
     runAgentViaGateway: (payload: Record<string, unknown>) => Promise<unknown>
     killAthenaRun: (runId: string) => Promise<void>
+    onAthenaRunEvent: (callback: (data: { runId: string; tempRunId?: string; event: any }) => void) => () => void
   }
 }
