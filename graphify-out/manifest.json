@@ -303,5 +303,310 @@
     "mtime": 1783304258.5404847,
     "ast_hash": "80a78eeefc29b14ade7846918e0545af",
     "semantic_hash": ""
+  },
+  "/Users/home/code/project-x/savant-forge/.gemini/ralph/state.json": {
+    "mtime": 1782431684.4154975,
+    "ast_hash": "010f4c2b4cece44f65dabd0eadd16b3d",
+    "semantic_hash": "010f4c2b4cece44f65dabd0eadd16b3d"
+  },
+  "/Users/home/code/project-x/savant-forge/.gemini/settings.json": {
+    "mtime": 1782217086.4725244,
+    "ast_hash": "f080aabf772e803c9e24b9ad0acbf2b6",
+    "semantic_hash": "f080aabf772e803c9e24b9ad0acbf2b6"
+  },
+  "/Users/home/code/project-x/savant-forge/jira_tickets_tmp.py": {
+    "mtime": 1782256539.1613605,
+    "ast_hash": "b2f23cbd4761d371a17765e32e8e2607",
+    "semantic_hash": "b2f23cbd4761d371a17765e32e8e2607"
+  },
+  "/Users/home/code/project-x/savant-forge/package.json": {
+    "mtime": 1783307367.8305116,
+    "ast_hash": "4d20cce698118f5675ae15a5eefbf695",
+    "semantic_hash": "4d20cce698118f5675ae15a5eefbf695"
+  },
+  "/Users/home/code/project-x/savant-forge/scripts/wait-and-launch-electron.js": {
+    "mtime": 1782051089.5961194,
+    "ast_hash": "550510f7b8f18b324c0fd690855917dc",
+    "semantic_hash": "550510f7b8f18b324c0fd690855917dc"
+  },
+  "/Users/home/code/project-x/savant-forge/src/main/electron/athenaDb.ts": {
+    "mtime": 1783304258.5404847,
+    "ast_hash": "80a78eeefc29b14ade7846918e0545af",
+    "semantic_hash": "80a78eeefc29b14ade7846918e0545af"
+  },
+  "/Users/home/code/project-x/savant-forge/src/main/electron/main.ts": {
+    "mtime": 1783306943.1093936,
+    "ast_hash": "2db381dce8aeb2c85b71e3ca33292d87",
+    "semantic_hash": "2db381dce8aeb2c85b71e3ca33292d87"
+  },
+  "/Users/home/code/project-x/savant-forge/src/main/electron/preload.ts": {
+    "mtime": 1783306965.0253298,
+    "ast_hash": "30727964745e0511793690d4896b6dd0",
+    "semantic_hash": "30727964745e0511793690d4896b6dd0"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/App.tsx": {
+    "mtime": 1783306271.7908587,
+    "ast_hash": "58d80afc1c1a1a10b25152c8c7af8b53",
+    "semantic_hash": "58d80afc1c1a1a10b25152c8c7af8b53"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/appModule.tsx": {
+    "mtime": 1782051207.8133833,
+    "ast_hash": "67da7fccbf9ab9fbd8919074f2d56986",
+    "semantic_hash": "67da7fccbf9ab9fbd8919074f2d56986"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/components/AddTicketModal.tsx": {
+    "mtime": 1782399615.1744733,
+    "ast_hash": "794018b71360add4ff4123ccaa17bf0d",
+    "semantic_hash": "794018b71360add4ff4123ccaa17bf0d"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/components/DeveloperModal.tsx": {
+    "mtime": 1782401703.1838877,
+    "ast_hash": "c85ef27b40815e5a7411b0ffcd67d86f",
+    "semantic_hash": "c85ef27b40815e5a7411b0ffcd67d86f"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/components/DeveloperSpecialties.tsx": {
+    "mtime": 1782072130.2347085,
+    "ast_hash": "e5cef419315e42b994c5f06a6404bb1c",
+    "semantic_hash": "e5cef419315e42b994c5f06a6404bb1c"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/components/LeftRail.tsx": {
+    "mtime": 1782055389.7348418,
+    "ast_hash": "f158c3d379a2aa9d03e3096514dd921a",
+    "semantic_hash": "f158c3d379a2aa9d03e3096514dd921a"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/components/LoginScreen.tsx": {
+    "mtime": 1783306818.42371,
+    "ast_hash": "70316b733b0b7b31767e595801c7f612",
+    "semantic_hash": "70316b733b0b7b31767e595801c7f612"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/components/LogoutConfirmModal.tsx": {
+    "mtime": 1782055280.6699991,
+    "ast_hash": "77a8610083c32d0bdafabcffbff2ba9d",
+    "semantic_hash": "77a8610083c32d0bdafabcffbff2ba9d"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/components/ProductManagerPanel.tsx": {
+    "mtime": 1782661569.955547,
+    "ast_hash": "6b2e0414b715e00273215c6bbd526379",
+    "semantic_hash": "6b2e0414b715e00273215c6bbd526379"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/components/SettingsModal.tsx": {
+    "mtime": 1782401703.1828182,
+    "ast_hash": "448627b51681122e6bd7496943f0a7eb",
+    "semantic_hash": "448627b51681122e6bd7496943f0a7eb"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/components/SprintWorkbenchPanel.tsx": {
+    "mtime": 1782401703.1822743,
+    "ast_hash": "98dc30060c6f306afada77c4155c3678",
+    "semantic_hash": "98dc30060c6f306afada77c4155c3678"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/components/SquadCockpit.tsx": {
+    "mtime": 1782401967.0559056,
+    "ast_hash": "03aa413c9173635ef10fad930b9c8486",
+    "semantic_hash": "03aa413c9173635ef10fad930b9c8486"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/components/SquadStatsPanel.tsx": {
+    "mtime": 1782401703.1817245,
+    "ast_hash": "194de82ccf8997e0e31370df49ac383a",
+    "semantic_hash": "194de82ccf8997e0e31370df49ac383a"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/main.tsx": {
+    "mtime": 1782051089.5991802,
+    "ast_hash": "be62e99493d80c0f7e07311cd52ea9cd",
+    "semantic_hash": "be62e99493d80c0f7e07311cd52ea9cd"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/public/forge_config.json": {
+    "mtime": 1782094197.6941485,
+    "ast_hash": "2ad780b4095517edc0b94359e04bc144",
+    "semantic_hash": "2ad780b4095517edc0b94359e04bc144"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/services/athenaContext.ts": {
+    "mtime": 1783304509.600094,
+    "ast_hash": "5911ce4351e5d21ff4f896ef48c1f4f9",
+    "semantic_hash": "5911ce4351e5d21ff4f896ef48c1f4f9"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/services/athenaStore.ts": {
+    "mtime": 1783304331.4789271,
+    "ast_hash": "106c8f0740ae0d243191f8ef2d49d812",
+    "semantic_hash": "106c8f0740ae0d243191f8ef2d49d812"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/services/localState.ts": {
+    "mtime": 1782614560.9118268,
+    "ast_hash": "d0787ffde4d97bbbbf46af77a4047189",
+    "semantic_hash": "d0787ffde4d97bbbbf46af77a4047189"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/services/savantClient.ts": {
+    "mtime": 1782094871.3705838,
+    "ast_hash": "1198924ac1d9dcc6cfba8fe1920ca307",
+    "semantic_hash": "1198924ac1d9dcc6cfba8fe1920ca307"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/shellTypes.ts": {
+    "mtime": 1782051089.6029756,
+    "ast_hash": "62b5770fbcbf4f8bac180404bd9a582b",
+    "semantic_hash": "62b5770fbcbf4f8bac180404bd9a582b"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/AddTicketModal.test.tsx": {
+    "mtime": 1782399636.2704496,
+    "ast_hash": "77beb52f501a7870161cfafc5fbd7615",
+    "semantic_hash": "77beb52f501a7870161cfafc5fbd7615"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/App.test.tsx": {
+    "mtime": 1782053753.949114,
+    "ast_hash": "fcedea1aba46e2971183de566ad4436c",
+    "semantic_hash": "fcedea1aba46e2971183de566ad4436c"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/LeftRail.test.tsx": {
+    "mtime": 1782055380.1973052,
+    "ast_hash": "01289a13e037b32f873ca4318797e580",
+    "semantic_hash": "01289a13e037b32f873ca4318797e580"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/LocalState.test.tsx": {
+    "mtime": 1782614584.9003546,
+    "ast_hash": "bbabb154964dd109c0df2420c2e5eaaa",
+    "semantic_hash": "bbabb154964dd109c0df2420c2e5eaaa"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/LoginScreen.test.tsx": {
+    "mtime": 1783306818.4239814,
+    "ast_hash": "088eb2724cea4f93bb86edd0e99cbbe3",
+    "semantic_hash": "088eb2724cea4f93bb86edd0e99cbbe3"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/LogoutConfirmModal.test.tsx": {
+    "mtime": 1782055286.6893811,
+    "ast_hash": "6e688d63121d214cbd0e9da42d4d04f3",
+    "semantic_hash": "6e688d63121d214cbd0e9da42d4d04f3"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/SettingsModal.test.tsx": {
+    "mtime": 1782073151.153538,
+    "ast_hash": "9794dc6cff9515a070b72d74969a803f",
+    "semantic_hash": "9794dc6cff9515a070b72d74969a803f"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/SprintWorkbenchPanel.test.tsx": {
+    "mtime": 1782217760.5428796,
+    "ast_hash": "2022377ef89ee02589da0193d40a0fec",
+    "semantic_hash": "2022377ef89ee02589da0193d40a0fec"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/SquadCockpit.test.tsx": {
+    "mtime": 1782216877.2954288,
+    "ast_hash": "6c7c4bb4e954c637c7de3e2b1af14468",
+    "semantic_hash": "6c7c4bb4e954c637c7de3e2b1af14468"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/appModule.test.tsx": {
+    "mtime": 1782055282.3653862,
+    "ast_hash": "1033b7a4c87fbb045aa3b281c72c2889",
+    "semantic_hash": "1033b7a4c87fbb045aa3b281c72c2889"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/athenaContext.test.ts": {
+    "mtime": 1783304477.7240589,
+    "ast_hash": "5fef6285a4b051f356efb6e633e283a9",
+    "semantic_hash": "5fef6285a4b051f356efb6e633e283a9"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/athenaStore.test.ts": {
+    "mtime": 1782183058.5002947,
+    "ast_hash": "c45956f817870fe3ff501697ee411ac4",
+    "semantic_hash": "c45956f817870fe3ff501697ee411ac4"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/savantClient.test.ts": {
+    "mtime": 1782094875.9292185,
+    "ast_hash": "5e33d25f078b910d1266c84111dfb720",
+    "semantic_hash": "5e33d25f078b910d1266c84111dfb720"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/test/setup.ts": {
+    "mtime": 1782180074.2736475,
+    "ast_hash": "2f74b21957036e8bcfab4c69cd980da1",
+    "semantic_hash": "2f74b21957036e8bcfab4c69cd980da1"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/vite-env.d.ts": {
+    "mtime": 1783304464.359549,
+    "ast_hash": "080b830f4650c086c9eb2cf85142d586",
+    "semantic_hash": "080b830f4650c086c9eb2cf85142d586"
+  },
+  "/Users/home/code/project-x/savant-forge/tsconfig.json": {
+    "mtime": 1782051089.6037686,
+    "ast_hash": "9ef5e7db588693a40325619d2911498e",
+    "semantic_hash": "9ef5e7db588693a40325619d2911498e"
+  },
+  "/Users/home/code/project-x/savant-forge/tsconfig.node.json": {
+    "mtime": 1782051089.6040375,
+    "ast_hash": "42c71f3f9f64d94f8145887b59354846",
+    "semantic_hash": "42c71f3f9f64d94f8145887b59354846"
+  },
+  "/Users/home/code/project-x/savant-forge/vite.config.ts": {
+    "mtime": 1783305463.579716,
+    "ast_hash": "3336df8b1972bd514cf49e52874bc796",
+    "semantic_hash": "3336df8b1972bd514cf49e52874bc796"
+  },
+  "/Users/home/code/project-x/savant-forge/vitest.config.ts": {
+    "mtime": 1782180085.5344827,
+    "ast_hash": "96806e3cf365e3fe75d9db4b1160aa13",
+    "semantic_hash": "96806e3cf365e3fe75d9db4b1160aa13"
+  },
+  "/Users/home/code/project-x/savant-forge/GEMINI.md": {
+    "mtime": 1782217086.4722345,
+    "ast_hash": "82efb97a359f5c7290bf2513d14686be",
+    "semantic_hash": "82efb97a359f5c7290bf2513d14686be"
+  },
+  "/Users/home/code/project-x/savant-forge/index.html": {
+    "mtime": 1782051230.9625618,
+    "ast_hash": "493e7ff5d498ecadf672404005158643",
+    "semantic_hash": "493e7ff5d498ecadf672404005158643"
+  },
+  "/Users/home/code/project-x/savant-forge/style-guide.md": {
+    "mtime": 1782400284.7622209,
+    "ast_hash": "b410eb6f9ac970420d365b11c71754c0",
+    "semantic_hash": "b410eb6f9ac970420d365b11c71754c0"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/public/main.svg": {
+    "mtime": 1782054448.0093462,
+    "ast_hash": "638e99dbc9d2e0b2840b545ad75afe79",
+    "semantic_hash": "638e99dbc9d2e0b2840b545ad75afe79"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/public/savant-sanctum-256.png": {
+    "mtime": 1782051089.600649,
+    "ast_hash": "0d31525cc67e6ec5067fa0f1eff4f0e8",
+    "semantic_hash": "0d31525cc67e6ec5067fa0f1eff4f0e8"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/public/savant-sanctum.png": {
+    "mtime": 1782051089.6009448,
+    "ast_hash": "331dd9d519cd69852c5892b2f20557ec",
+    "semantic_hash": "331dd9d519cd69852c5892b2f20557ec"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/public/tray.png": {
+    "mtime": 1782093693.4486692,
+    "ast_hash": "85437234c4d05feed7d5141d3bd0fcde",
+    "semantic_hash": "85437234c4d05feed7d5141d3bd0fcde"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/public/tray.svg": {
+    "mtime": 1782093680.8428648,
+    "ast_hash": "0e76977324272efaddd82f488a35847e",
+    "semantic_hash": "0e76977324272efaddd82f488a35847e"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/public/tray@2x.png": {
+    "mtime": 1782093693.4500475,
+    "ast_hash": "73a2747defd81a7f31d52e64ef1635e9",
+    "semantic_hash": "73a2747defd81a7f31d52e64ef1635e9"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/public/tray@3x.png": {
+    "mtime": 1782093693.45237,
+    "ast_hash": "49b0154233ff5106e77ab0bd5a5806dc",
+    "semantic_hash": "49b0154233ff5106e77ab0bd5a5806dc"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/public/trayTemplate.png": {
+    "mtime": 1782093693.449217,
+    "ast_hash": "85437234c4d05feed7d5141d3bd0fcde",
+    "semantic_hash": "85437234c4d05feed7d5141d3bd0fcde"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/public/trayTemplate@2x.png": {
+    "mtime": 1782093693.4508114,
+    "ast_hash": "73a2747defd81a7f31d52e64ef1635e9",
+    "semantic_hash": "73a2747defd81a7f31d52e64ef1635e9"
+  },
+  "/Users/home/code/project-x/savant-forge/src/renderer/public/trayTemplate@3x.png": {
+    "mtime": 1782093693.453849,
+    "ast_hash": "49b0154233ff5106e77ab0bd5a5806dc",
+    "semantic_hash": "49b0154233ff5106e77ab0bd5a5806dc"
+  },
+  "/Users/home/code/project-x/savant-forge/tray.svg.png": {
+    "mtime": 1782074308.3186247,
+    "ast_hash": "f40001d7e403b894fc57c9356cb8b740",
+    "semantic_hash": "f40001d7e403b894fc57c9356cb8b740"
   }
 }
