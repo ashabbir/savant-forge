@@ -14,6 +14,7 @@ interface Window {
   system?: {
     loadAthenaThreads: () => import('./services/athenaStore').AthenaThread[]
     saveAthenaThread: (thread: import('./services/athenaStore').AthenaThread) => void
+    deleteAthenaThread: (threadId: string) => void
     loadAthenaRuns: () => import('./services/athenaStore').AthenaRunRecord[]
     saveAthenaRun: (run: import('./services/athenaStore').AthenaRunRecord) => void
     saveAthenaRuns: (runs: import('./services/athenaStore').AthenaRunRecord[]) => void

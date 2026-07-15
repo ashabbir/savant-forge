@@ -75,6 +75,16 @@ export function upsertAthenaThread(thread: AthenaThread) {
   dispatchChange()
 }
 
+export function deleteAthenaThread(threadId: string) {
+  const system = getSystemBridge()
+  if (system?.deleteAthenaThread) {
+    system.deleteAthenaThread(threadId)
+  } else {
+    memoryStore.threads = memoryStore.threads.filter((t) => t.id !== threadId)
+  }
+  dispatchChange()
+}
+
 export function appendAthenaThreadMessage(threadId: string, message: AthenaThreadMessage) {
   const next = loadAthenaThreads().map((thread) => {
     if (thread.id !== threadId) return thread

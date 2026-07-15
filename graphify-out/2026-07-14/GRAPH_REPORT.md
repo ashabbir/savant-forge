@@ -1,7 +1,7 @@
 # Graph Report - savant-forge  (2026-07-14)
 
 ## Corpus Check
-- 49 files · ~57,143 words
+- 49 files · ~56,922 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary

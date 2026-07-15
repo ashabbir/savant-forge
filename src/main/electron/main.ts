@@ -9,7 +9,8 @@ import {
   setAthenaThreadActiveRun,
   upsertAthenaRun,
   upsertAthenaThread,
-  updateAthenaRun
+  updateAthenaRun,
+  deleteAthenaThread
 } from './athenaDb'
 
 type SavantShellConfig = {
@@ -93,6 +94,10 @@ function registerAthenaIpc() {
   })
   ipcMain.on('athena:save-thread', (event, thread) => {
     upsertAthenaThread(thread)
+    event.returnValue = true
+  })
+  ipcMain.on('athena:delete-thread', (event, threadId) => {
+    deleteAthenaThread(threadId)
     event.returnValue = true
   })
   ipcMain.on('athena:load-runs', (event) => {
@@ -190,6 +195,7 @@ function registerAthenaIpc() {
       console.error('Failed to pre-insert run in SQLite:', dbErr)
     }
 
+    let assistantText = ''
     try {
       const streamResponse = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs/${runId}/stream`)
       if (!streamResponse.ok || !streamResponse.body) return runData
@@ -197,7 +203,6 @@ function registerAthenaIpc() {
       const reader = streamResponse.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
-      let assistantText = ''
 
       while (true) {
         const { value, done } = await reader.read()
@@ -239,6 +244,19 @@ function registerAthenaIpc() {
         }
       }
 
+      // Fetch the final run details from the gateway to guarantee we get the full response
+      try {
+        const finalResponse = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs/${runId}`)
+        if (finalResponse.ok) {
+          const finalRunData = await finalResponse.json()
+          if (finalRunData.result?.response || finalRunData.response) {
+            assistantText = finalRunData.result.response || finalRunData.response
+          }
+        }
+      } catch (fetchErr) {
+        console.error('Failed to fetch final run details:', fetchErr)
+      }
+
       if (win) {
         win.webContents.send('athena:run-event', {
           runId,
@@ -250,6 +268,28 @@ function registerAthenaIpc() {
       return { ...runData, message: assistantText || runData.message || '' }
     } catch (streamErr) {
       console.error('Error streaming run:', streamErr)
+      
+      // Try to recover the message from the gateway even if streaming failed
+      try {
+        const finalResponse = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs/${runId}`)
+        if (finalResponse.ok) {
+          const finalRunData = await finalResponse.json()
+          if (finalRunData.result?.response || finalRunData.response) {
+            assistantText = finalRunData.result.response || finalRunData.response
+            if (win) {
+              win.webContents.send('athena:run-event', {
+                runId,
+                tempRunId: tRunId,
+                event: { type: 'complete', status: 'complete', content: assistantText }
+              })
+            }
+            return { ...runData, message: assistantText }
+          }
+        }
+      } catch (fetchErr) {
+        console.error('Failed to recover run details after stream error:', fetchErr)
+      }
+
       if (win) {
         win.webContents.send('athena:run-event', {
           runId,

@@ -49,11 +49,11 @@ describe('SquadCockpit', () => {
       />
     )
 
-    expect(screen.getByText('SQUAD ALPHA')).toBeTruthy()
+    expect(screen.getByText('Squad Alpha')).toBeTruthy()
     expect(screen.getByText('Dev One')).toBeTruthy()
     expect(screen.getByText('SENIOR')).toBeTruthy()
     expect(screen.getByText('HAPPY')).toBeTruthy()
-    expect(screen.getByText('5 SP')).toBeTruthy()
+    expect(screen.getByText('Load: 5 SP')).toBeTruthy()
     expect(screen.getByText('Task One')).toBeTruthy()
   })
 

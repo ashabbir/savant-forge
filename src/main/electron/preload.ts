@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('savantShell', {
 contextBridge.exposeInMainWorld('system', {
   loadAthenaThreads: (): AthenaThread[] => ipcRenderer.sendSync('athena:load-threads'),
   saveAthenaThread: (thread: AthenaThread): void => ipcRenderer.send('athena:save-thread', thread),
+  deleteAthenaThread: (threadId: string): void => {
+    ipcRenderer.sendSync('athena:delete-thread', threadId)
+  },
   loadAthenaRuns: (): AthenaRunRecord[] => ipcRenderer.sendSync('athena:load-runs'),
   saveAthenaRun: (run: AthenaRunRecord): void => ipcRenderer.send('athena:save-run', run),
   saveAthenaRuns: (runs: AthenaRunRecord[]): void => ipcRenderer.send('athena:save-runs', runs),

@@ -118,7 +118,8 @@ import {
   type AthenaThreadMessage,
   upsertAthenaRun,
   upsertAthenaThread,
-  updateAthenaRun
+  updateAthenaRun,
+  deleteAthenaThread
 } from './services/athenaStore'
 
 import { appModule } from './appModule'
@@ -555,6 +556,7 @@ function App() {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [activeRunId, setActiveRunId] = useState<string | null>(null)
   const [activeRunEvents, setActiveRunEvents] = useState<any[]>([])
+  const [isThreadBrowserOpen, setIsThreadBrowserOpen] = useState(false)
 
   // New ticket modal/form states
   const [newTicketTitle, setNewTicketTitle] = useState('')
@@ -1291,6 +1293,110 @@ function App() {
       deleteAthenaThreadMessage(threadId, messageId)
     }
     setChatMessages((prev) => prev.filter((message) => message.id !== messageId))
+  }
+
+  function handleRestoreAthenaThread(thread: AthenaThread) {
+    setActiveAthenaThreadId(thread.id)
+    setChatMessages(thread.messages)
+    setActiveRunId(null)
+    setActiveRunEvents([])
+    setIsThreadBrowserOpen(false)
+
+    // Parse kind and key to restore selection
+    const { contextKind, contextKey } = thread
+    
+    if (contextKind === 'prd') {
+      const prdId = contextKey.replace('prd:', '')
+      const prd = prds.find(p => p.id === prdId)
+      if (prd) {
+        setSelectedPrdId(prd.id)
+        setActiveTab('projects')
+        setAthenaContextOverride(null)
+      } else {
+        setAthenaContextOverride({
+          kind: 'prd',
+          key: contextKey,
+          title: thread.title,
+          summary: `Restored deleted/archived PRD context for "${thread.title}".`,
+          promptSections: [['RESTORED CONTEXT', `prd_id=${prdId}\ntitle=${thread.title}`]]
+        })
+      }
+    } else if (contextKind === 'developer') {
+      const devId = contextKey.replace('developer:', '')
+      const dev = activeSquad?.developers.find(d => d.id === devId)
+      if (dev) {
+        setSelectedDeveloperId(dev.id)
+        setActiveTab('squad')
+        setAthenaContextOverride(null)
+      } else {
+        setAthenaContextOverride({
+          kind: 'developer',
+          key: contextKey,
+          title: thread.title,
+          summary: `Restored deleted/archived developer context for "${thread.title}".`,
+          promptSections: [['RESTORED CONTEXT', `developer_id=${devId}\nname=${thread.title}`]]
+        })
+      }
+    } else if (contextKind === 'ticket') {
+      const ticketId = contextKey.replace('ticket:', '')
+      const ticket = tickets.find(t => t.ticket_id === ticketId)
+      if (ticket) {
+        setSelectedTicketId(ticket.ticket_id)
+        setActiveTab('blueprint')
+        setAthenaContextOverride(null)
+      } else {
+        setAthenaContextOverride({
+          kind: 'ticket',
+          key: contextKey,
+          title: thread.title,
+          summary: `Restored deleted/archived ticket context for "${thread.title}".`,
+          promptSections: [['RESTORED CONTEXT', `ticket_id=${ticketId}\nkey=${thread.title}`]]
+        })
+      }
+    } else if (contextKind === 'squad') {
+      const squadId = contextKey.replace('squad:', '')
+      const squad = config?.squads.find(s => s.id === squadId)
+      if (squad) {
+        setSelectedSquadId(squad.id)
+        setActiveTab('squad')
+        setAthenaContextOverride(null)
+      } else {
+        setAthenaContextOverride({
+          kind: 'squad',
+          key: contextKey,
+          title: thread.title,
+          summary: `Restored deleted/archived squad context for "${thread.title}".`,
+          promptSections: [['RESTORED CONTEXT', `squad_id=${squadId}\nname=${thread.title}`]]
+        })
+      }
+    } else if (contextKind === 'project') {
+      const projId = contextKey.replace('project:', '')
+      const proj = projectEntities.find(p => p.id === projId)
+      if (proj) {
+        setSelectedPmProject(proj)
+        setActiveTab('projects')
+        setAthenaContextOverride(null)
+      } else {
+        setAthenaContextOverride({
+          kind: 'project',
+          key: contextKey,
+          title: thread.title,
+          summary: `Restored deleted/archived project context for "${thread.title}".`,
+          promptSections: [['RESTORED CONTEXT', `project_id=${projId}\nname=${thread.title}`]]
+        })
+      }
+    } else {
+      setAthenaContextOverride(null)
+    }
+  }
+
+  function handleDeleteAthenaThread(threadId: string) {
+    deleteAthenaThread(threadId)
+    setAthenaThreads(loadAthenaThreads())
+    if (activeAthenaThreadId === threadId) {
+      setActiveAthenaThreadId(null)
+      setChatMessages([])
+    }
   }
 
   // Debounced server sync helper for PRDs - saves immediately to localStorage, syncs to server after delay
@@ -2549,97 +2655,231 @@ function App() {
               )}
               {rightPanelTab === 'athena-chat' && (
                 <div className="athena-chat-panel">
-                  <div className="athena-chat-header">
-                    <Bot size={12} className="athena-chat-bot-icon" />
-                    <span>ATHENA PM COPILOT CONVERSATION</span>
+                  <div className="athena-chat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Bot size={12} className="athena-chat-bot-icon" />
+                      <span>ATHENA PM COPILOT CONVERSATION</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {!isThreadBrowserOpen && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const threadId = activeAthenaThreadId || (athenaContextProfile ? `athena-thread-${athenaContextProfile.key}` : '')
+                            if (threadId && confirm('Delete this conversation? This will clear the chat history.')) {
+                              handleDeleteAthenaThread(threadId)
+                            }
+                          }}
+                          title="Delete current conversation"
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid rgba(255, 34, 68, 0.4)',
+                            color: 'var(--cp-magenta)',
+                            padding: '2px 6px',
+                            fontSize: '9px',
+                            fontFamily: "'Share Tech Mono', monospace",
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px'
+                          }}
+                        >
+                          <Trash2 size={10} />
+                          DELETE
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsThreadBrowserOpen(!isThreadBrowserOpen)}
+                        title="View chat history threads"
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--cp-border)',
+                          color: 'var(--cp-cyan)',
+                          padding: '2px 6px',
+                          fontSize: '9px',
+                          fontFamily: "'Share Tech Mono', monospace",
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}
+                      >
+                        <History size={10} />
+                        {isThreadBrowserOpen ? 'CHAT' : 'HISTORY'}
+                      </button>
+                    </div>
                   </div>
-                  <div className="athena-chat-context">
-                    <div className="athena-chat-context-label">ACTIVE CONTEXT</div>
-                    <div className="athena-chat-context-title">{athenaContextProfile.title}</div>
-                    <div className="athena-chat-context-summary">{athenaContextProfile.summary}</div>
-                  </div>
-                  <div className="athena-chat-meta-row">
-                    <span className="athena-meta-badge">PERSONA: {athenaPersona.name}</span>
-                    <span className="athena-meta-badge">PROVIDER: {config?.athena_provider || 'codex'}</span>
-                    <span className="athena-meta-badge">MODEL: {config?.athena_model || 'gpt-5-codex'}</span>
-                  </div>
-                  {/* Chat messages viewport */}
-                  <div className="athena-chat-viewport">
-                    {chatMessages.map(msg => (
-                      <div key={msg.id} className={`athena-msg-row ${msg.sender === 'user' ? 'user' : 'assistant'}`}>
-                        <div className="athena-msg-avatar">
-                          {msg.sender === 'user' ? <UserRound size={12} /> : <Bot size={12} />}
+
+                  {isThreadBrowserOpen ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, overflowY: 'auto', padding: '10px', background: 'var(--cp-bg-2)' }}>
+                      <div style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '4px', borderBottom: '1px solid var(--cp-border)', paddingBottom: '4px' }}>
+                        PAST CONVERSATIONS ({athenaThreads.length})
+                      </div>
+                      {athenaThreads.length === 0 ? (
+                        <div style={{ color: 'var(--muted-foreground)', fontSize: '11px', fontStyle: 'italic', fontFamily: "'Share Tech Mono', monospace", padding: '8px 0', textAlign: 'center' }}>
+                          No past conversations found.
                         </div>
-                        <div className="athena-msg-bubble-container">
-                          <div className="athena-msg-meta">
-                            {msg.sender === 'assistant' ? 'ATHENA' : 'OPERATOR'} · {msg.timestamp}
-                          </div>
-                          <div className={`athena-msg-bubble ${msg.sender === 'user' ? 'user' : 'assistant'}`}>
-                            <div className="athena-msg-content-wrapper">
-                              <div className="athena-msg-text">
-                                {msg.sender === 'user' ? (
-                                  <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
-                                ) : (
-                                  <div className="athena-markdown-content text-[11px] leading-relaxed">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
-                                  </div>
-                                )}
+                      ) : (
+                        athenaThreads
+                          .slice()
+                          .sort((a, b) => new Date(b.lastUpdatedAt).getTime() - new Date(a.lastUpdatedAt).getTime())
+                          .map((thread) => (
+                            <div
+                              key={thread.id}
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px',
+                                background: 'var(--cp-bg-3)',
+                                border: '1px solid var(--cp-border)',
+                                padding: '8px 10px',
+                                borderRadius: '2px',
+                                transition: 'all 0.2s',
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => handleRestoreAthenaThread(thread)}
+                              className="thread-history-item"
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left' }}>
+                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--foreground)' }}>
+                                    {thread.title}
+                                  </span>
+                                  <span style={{
+                                    fontSize: '8px',
+                                    fontFamily: "'Share Tech Mono', monospace",
+                                    color: 'var(--cp-cyan)',
+                                    background: 'rgba(0, 229, 255, 0.08)',
+                                    border: '1px solid rgba(0, 229, 255, 0.15)',
+                                    padding: '1px 4px',
+                                    marginLeft: '6px',
+                                    textTransform: 'uppercase'
+                                  }}>
+                                    {thread.contextKind}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (confirm(`Delete conversation "${thread.title}"?`)) {
+                                      handleDeleteAthenaThread(thread.id)
+                                    }
+                                  }}
+                                  title="Delete thread"
+                                  aria-label="Delete thread"
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--cp-magenta)',
+                                    cursor: 'pointer',
+                                    padding: '0 4px',
+                                    fontSize: '11px'
+                                  }}
+                                >
+                                  <Trash2 size={11} />
+                                </button>
                               </div>
-                              <div className="athena-msg-actions">
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopyAthenaMessage(msg.text)}
-                                  title="Copy message"
-                                  aria-label="Copy message"
-                                  className="athena-msg-action-btn copy"
-                                >
-                                  <Copy size={9} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteAthenaMessage(msg.id)}
-                                  title="Delete message"
-                                  aria-label="Delete message"
-                                  className="athena-msg-action-btn delete"
-                                >
-                                  <Trash2 size={9} />
-                                </button>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace" }}>
+                                <span>{thread.messages.length} messages</span>
+                                <span>{new Date(thread.lastUpdatedAt).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          ))
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="athena-chat-context">
+                        <div className="athena-chat-context-label">ACTIVE CONTEXT</div>
+                        <div className="athena-chat-context-title">{athenaContextProfile.title}</div>
+                        <div className="athena-chat-context-summary">{athenaContextProfile.summary}</div>
+                      </div>
+                      <div className="athena-chat-meta-row">
+                        <span className="athena-meta-badge">PERSONA: {athenaPersona.name}</span>
+                        <span className="athena-meta-badge">PROVIDER: {config?.athena_provider || 'codex'}</span>
+                        <span className="athena-meta-badge">MODEL: {config?.athena_model || 'gpt-5-codex'}</span>
+                      </div>
+                      {/* Chat messages viewport */}
+                      <div className="athena-chat-viewport">
+                        {chatMessages.map(msg => (
+                          <div key={msg.id} className={`athena-msg-row ${msg.sender === 'user' ? 'user' : 'assistant'}`}>
+                            <div className="athena-msg-avatar">
+                              {msg.sender === 'user' ? <UserRound size={12} /> : <Bot size={12} />}
+                            </div>
+                            <div className="athena-msg-bubble-container">
+                              <div className="athena-msg-meta">
+                                {msg.sender === 'assistant' ? 'ATHENA' : 'OPERATOR'} · {msg.timestamp}
+                              </div>
+                              <div className={`athena-msg-bubble ${msg.sender === 'user' ? 'user' : 'assistant'}`}>
+                                <div className="athena-msg-content-wrapper">
+                                  <div className="athena-msg-text">
+                                    {msg.sender === 'user' ? (
+                                      <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
+                                    ) : (
+                                      <div className="athena-markdown-content text-[11px] leading-relaxed">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="athena-msg-actions">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyAthenaMessage(msg.text)}
+                                      title="Copy message"
+                                      aria-label="Copy message"
+                                      className="athena-msg-action-btn copy"
+                                    >
+                                      <Copy size={9} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteAthenaMessage(msg.id)}
+                                      title="Delete message"
+                                      aria-label="Delete message"
+                                      className="athena-msg-action-btn delete"
+                                    >
+                                      <Trash2 size={9} />
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
+                        ))}
+                        {isAiLoading && (
+                          <div className="run-events-container">
+                            <div className="run-events-header">
+                              <span>ATHENA_ACTIVE_PROCESS</span>
+                              <span className="running-dots">...</span>
+                            </div>
+                            {activeRunEvents.map((ev, idx) => renderAthenaRunEvent(ev, idx))}
+                          </div>
+                        )}
+                        <div ref={chatEndRef} />
                       </div>
-                    ))}
-                    {isAiLoading && (
-                      <div className="run-events-container">
-                        <div className="run-events-header">
-                          <span>ATHENA_ACTIVE_PROCESS</span>
-                          <span className="running-dots">...</span>
-                        </div>
-                        {activeRunEvents.map((ev, idx) => renderAthenaRunEvent(ev, idx))}
-                      </div>
-                    )}
-                    <div ref={chatEndRef} />
-                  </div>
 
-                  {/* Chat input box */}
-                  <form onSubmit={handleSendAthenaMessage} className="athena-chat-input-form">
-                    <input 
-                      type="text"
-                      placeholder="ask athena..."
-                      value={chatInput}
-                      onChange={e => setChatInput(e.target.value)}
-                      disabled={isAiLoading}
-                      className="athena-chat-input-field"
-                    />
-                    <button 
-                      type="submit"
-                      disabled={isAiLoading}
-                      className="athena-chat-submit-btn"
-                    >
-                      <Send size={10} />
-                    </button>
-                  </form>
+                      {/* Chat input box */}
+                      <form onSubmit={handleSendAthenaMessage} className="athena-chat-input-form">
+                        <input 
+                          type="text"
+                          placeholder="ask athena..."
+                          value={chatInput}
+                          onChange={e => setChatInput(e.target.value)}
+                          disabled={isAiLoading}
+                          className="athena-chat-input-field"
+                        />
+                        <button 
+                          type="submit"
+                          disabled={isAiLoading}
+                          className="athena-chat-submit-btn"
+                        >
+                          <Send size={10} />
+                        </button>
+                      </form>
+                    </>
+                  )}
                 </div>
               )}
               {rightPanelTab === 'prd-inspector' && (
@@ -3582,12 +3822,36 @@ function App() {
         <aside className="icon-rail rail-right" style={{ background: 'var(--cp-bg-1)', borderLeft: '1px solid var(--cp-border)', borderRight: '0' }}>
           <div className="rail-top">
             <button
-              className={`nav-icon ${rightPanelOpen && rightPanelTab === 'athena-chat' ? 'active' : ''}`}
-              onClick={() => handleRightRailClick('athena-chat')}
-              title="Athena Copilot"
+              className={`nav-icon ${rightPanelOpen && rightPanelTab === 'athena-chat' && !isThreadBrowserOpen ? 'active' : ''}`}
+              onClick={() => {
+                if (rightPanelOpen && rightPanelTab === 'athena-chat' && !isThreadBrowserOpen) {
+                  setRightPanelOpen(false)
+                } else {
+                  setIsThreadBrowserOpen(false)
+                  setRightPanelTab('athena-chat')
+                  setRightPanelOpen(true)
+                }
+              }}
+              title="Athena Chat"
             >
               <Sparkles size={16} />
-              <span className="rail-label-text">athena</span>
+              <span className="rail-label-text">athena chat</span>
+            </button>
+            <button
+              className={`nav-icon ${rightPanelOpen && rightPanelTab === 'athena-chat' && isThreadBrowserOpen ? 'active' : ''}`}
+              onClick={() => {
+                if (rightPanelOpen && rightPanelTab === 'athena-chat' && isThreadBrowserOpen) {
+                  setRightPanelOpen(false)
+                } else {
+                  setIsThreadBrowserOpen(true)
+                  setRightPanelTab('athena-chat')
+                  setRightPanelOpen(true)
+                }
+              }}
+              title="Chat History"
+            >
+              <History size={16} />
+              <span className="rail-label-text">history</span>
             </button>
             {activeTab === 'projects' && isProjectDrawerOpen && (
               <>

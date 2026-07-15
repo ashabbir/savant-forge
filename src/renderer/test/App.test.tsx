@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import App from '../App'
 
@@ -19,6 +19,9 @@ describe('App', () => {
     expect(screen.getAllByText('FORGE').length).toBeGreaterThan(0)
     expect(screen.getByText('athena chat')).toBeTruthy()
     expect(screen.getByText('blueprints')).toBeTruthy()
+
+    // Click projects tab to reveal sync button
+    fireEvent.click(screen.getByText('projects'))
     expect(screen.getByText('sync')).toBeTruthy()
   })
 })

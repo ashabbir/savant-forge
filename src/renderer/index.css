@@ -1723,6 +1723,12 @@ h3 {
   height: 100%;
 }
 
+.thread-history-item:hover {
+  background: var(--cp-bg-1) !important;
+  border-color: var(--cp-cyan) !important;
+  box-shadow: 0 0 4px rgba(0, 229, 255, 0.2);
+}
+
 .athena-chat-header {
   font-size: 10px;
   color: var(--section-label);

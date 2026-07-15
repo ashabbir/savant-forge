@@ -125,6 +125,10 @@ export function upsertAthenaThread(thread: AthenaThread) {
   threadUpsert.run({ ...normalized, messages: JSON.stringify(normalized.messages) })
 }
 
+export function deleteAthenaThread(threadId: string) {
+  db.prepare('DELETE FROM athena_threads WHERE id = ?').run(threadId)
+}
+
 export function setAthenaThreadActiveRun(threadId: string, runId?: string) {
   const thread = loadAthenaThreads().find((item) => item.id === threadId)
   if (!thread) return
@@ -158,8 +162,10 @@ export function updateAthenaRun(runId: string, updater: (run: AthenaRunRecord) =
   upsertAthenaRun(updater(existing))
 }
 
-function normalizeThread(thread: Partial<AthenaThread> | Record<string, string>): AthenaThread {
-  const messages = parseJson(thread.messages, [])
+function normalizeThread(thread: Partial<AthenaThread> | Record<string, any>): AthenaThread {
+  const messages = typeof thread.messages === 'string'
+    ? parseJson(thread.messages, [])
+    : (Array.isArray(thread.messages) ? thread.messages : [])
   return {
     id: thread.id || `athena-thread-${Math.random().toString(36).slice(2, 9)}`,
     contextKey: thread.contextKey || 'global',
@@ -171,7 +177,10 @@ function normalizeThread(thread: Partial<AthenaThread> | Record<string, string>)
   }
 }
 
-function normalizeRun(run: Partial<AthenaRunRecord> | Record<string, string>): AthenaRunRecord {
+function normalizeRun(run: Partial<AthenaRunRecord> | Record<string, any>): AthenaRunRecord {
+  const events = typeof run.events === 'string'
+    ? parseJson(run.events, [])
+    : (Array.isArray(run.events) ? run.events : [])
   return {
     id: run.id || `athena-run-${Math.random().toString(36).slice(2, 9)}`,
     provider: run.provider || 'codex',
@@ -181,7 +190,7 @@ function normalizeRun(run: Partial<AthenaRunRecord> | Record<string, string>): A
     endedAt: run.endedAt || '',
     prompt: run.prompt || '',
     message: run.message || '',
-    events: parseJson(run.events, []),
+    events,
     source: (run.source as AthenaRunRecord['source']) || 'local',
     app: run.app || 'forge',
     workspace_id: run.workspace_id || '',
