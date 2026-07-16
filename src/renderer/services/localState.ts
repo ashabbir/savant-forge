@@ -37,6 +37,12 @@ export interface JiraTicket {
   workspace_id: string
   ticket_key: string
   title: string
+  description?: string
+  acceptance_criteria?: string[]
+  review_status?: 'pending' | 'accepted' | 'rejected'
+  suggested_owner?: string
+  suggested_squad?: string
+  squad_id?: string
   project_id?: string
   epic_ticket_id?: string
   parent_ticket_id?: string
@@ -1112,8 +1118,16 @@ export async function createTicketLocal(serverUrl: string, ticketData: Partial<J
     reporter: ticketData.reporter || 'operator',
     story_points: parseStoryPoints(ticketData),
     prd_id: ticketData.prd_id || undefined,
-    sprint_id: ticketData.sprint_id || undefined
-  }
+    sprint_id: ticketData.sprint_id || undefined,
+    description: ticketData.description,
+    acceptance_criteria: ticketData.acceptance_criteria,
+    review_status: ticketData.review_status || 'pending',
+    suggested_owner: ticketData.suggested_owner,
+    suggested_squad: ticketData.suggested_squad,
+    squad_id: ticketData.squad_id,
+    issue_type: ticketData.issue_type || 'task',
+    epic_ticket_id: ticketData.epic_ticket_id
+  };
 
   tickets.push(newTicket)
   localStorage.setItem(STORAGE_TICKETS_KEY, JSON.stringify(tickets))
@@ -1134,7 +1148,15 @@ export async function createTicketLocal(serverUrl: string, ticketData: Partial<J
       assignee: newTicket.assignee,
       reporter: newTicket.reporter,
       prd_id: newTicket.prd_id,
-      sprint_id: newTicket.sprint_id
+      sprint_id: newTicket.sprint_id,
+      description: newTicket.description,
+      acceptance_criteria: newTicket.acceptance_criteria,
+      review_status: newTicket.review_status,
+      suggested_owner: newTicket.suggested_owner,
+      suggested_squad: newTicket.suggested_squad,
+      squad_id: newTicket.squad_id,
+      issue_type: newTicket.issue_type,
+      epic_ticket_id: newTicket.epic_ticket_id
     },
     timestamp: Date.now()
   })
@@ -1227,6 +1249,7 @@ export interface PRDDocument {
   project_id?: string // Link to a project
   feature_id?: string // Link to originating feature request
   epic_ids?: string[] // Jira epic ticket IDs generated from this PRD
+  epic_summary?: string // one-line local epic generated from this PRD
 }
 
 const STORAGE_PRD_KEY = 'savant_forge_prds'

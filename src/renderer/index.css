@@ -2104,3 +2104,38 @@ h3 {
   20% { opacity: 1; }
   100% { opacity: 0.2; }
 }
+/* People / Teams management surfaces */
+.forge-management-page { display:flex; flex-direction:column; gap:16px; flex:1; overflow:auto; }
+.management-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; }
+.management-card, .team-section, .team-list, .team-detail { border:1px solid var(--cp-border); background:var(--cp-bg-2); padding:14px; }
+.management-card { display:flex; flex-direction:column; gap:12px; }
+.card-title-row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.card-title-row h2, .team-detail h2 { margin:2px 0 0; color:var(--foreground); font-size:17px; }
+.tag-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.status-chip { border:1px solid var(--cp-border); padding:3px 6px; color:var(--muted-foreground); font:10px 'Share Tech Mono',monospace; }
+.status-chip.good { color:var(--cp-green); background:rgba(0,255,136,.06); }
+.status-chip.warning { color:var(--cp-yellow); background:rgba(255,230,0,.06); }
+.status-chip.danger { color:var(--cp-magenta); background:rgba(255,34,68,.08); }
+.capacity-bar { height:7px; background:var(--cp-bg-3); border:1px solid var(--cp-border); }
+.capacity-bar span { display:block; height:100%; background:linear-gradient(90deg,var(--cp-cyan),var(--cp-green)); }
+.card-stats { display:grid; gap:8px; }
+.stat-label, .section-title { color:var(--section-label); font:10px 'Share Tech Mono',monospace; text-transform:uppercase; letter-spacing:.08em; }
+.stat-value { color:var(--foreground); font-size:12px; margin-top:3px; }
+.muted { color:var(--muted-foreground); font-size:11px; }
+.strengths { border-top:1px solid var(--cp-border); padding-top:10px; display:grid; gap:7px; }
+.empty-management { border:1px dashed var(--cp-border); color:var(--muted-foreground); padding:30px; text-align:center; font:11px 'Share Tech Mono',monospace; }
+.team-layout { display:grid; grid-template-columns:240px minmax(0,1fr); gap:12px; align-items:start; }
+.team-list { display:grid; gap:8px; }
+.team-select { text-align:left; display:grid; gap:4px; padding:9px; background:var(--cp-bg-3); border:1px solid var(--cp-border); color:var(--foreground); cursor:pointer; }
+.team-select.selected { border-color:var(--cp-cyan); background:rgba(0,229,255,.08); }
+.team-select span { color:var(--muted-foreground); font:10px 'Share Tech Mono',monospace; }
+.create-team { display:flex; gap:6px; margin-top:4px; }
+.create-team input { min-width:0; flex:1; background:var(--cp-bg-3); border:1px solid var(--cp-border); color:var(--foreground); padding:7px; outline:none; }
+.team-detail { display:grid; gap:14px; }
+.team-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+.management-metric { display:grid; gap:5px; border:1px solid var(--cp-border); padding:10px; color:var(--cp-cyan); }
+.management-metric strong { color:var(--foreground); font-size:15px; }
+.member-row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--cp-border); }
+.member-row strong { color:var(--foreground); }
+.team-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+@media (max-width: 900px) { .team-layout, .team-columns { grid-template-columns:1fr; } .team-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }

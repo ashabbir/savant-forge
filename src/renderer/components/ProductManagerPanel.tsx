@@ -30,8 +30,8 @@ import {
   AlertCircle,
   ExternalLink
 } from 'lucide-react'
+import { createStructuredPrd, generateOneLineEpic, decomposeEpicIntoTickets, type GeneratedPlanTicket } from '../services/planningWorkflow'
 import {
-  getProjectEntities,
   saveProjectEntity,
   getFeatureRequestsByProject,
   getFeatureRequests,
@@ -71,6 +71,7 @@ export interface PMPanelProps {
   prds: PRDDocument[]
   tickets: JiraTicket[]
   squads: Squad[]
+  sprintPlans?: Array<{ id: string; name: string; status: string; squad_id: string }>
   activeSquadId: string
   onSaveProject: (project: ProjectEntity) => void
   onDeleteProject?: (projectId: string) => void
@@ -89,6 +90,7 @@ export interface PMPanelProps {
   onSelectTicket?: (ticketId: string) => void
   selectedPrdId?: string | null
   onSelectPrd?: (prdId: string | null) => void
+  onGeneratePlan?: (prd: PRDDocument, tickets: GeneratedPlanTicket[], sprintId?: string) => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1228,13 +1230,15 @@ function EditDrawer({
 // ─── Main ProductManagerPanel ─────────────────────────────────────────────────
 
 export function ProductManagerPanel({
-  projects, features, prds, tickets, squads, activeSquadId,
+  projects, features, prds, tickets, squads, sprintPlans = [], activeSquadId,
   onSaveProject, onSaveFeature, onDeleteFeature, onSavePRD, onDeletePRD,
-  onConvertFeatureToPRD, onOpenAthena, onNewProject, onSelectionChange, onRequestEditProject, onRequestDeleteProject, onProjectDrawerChange, projectActionSignal, selectedPrdId, onSelectPrd
+  onConvertFeatureToPRD, onOpenAthena, onNewProject, onSelectionChange, onRequestEditProject, onRequestDeleteProject, onProjectDrawerChange, projectActionSignal, selectedPrdId, onSelectPrd, onGeneratePlan
 }: PMPanelProps) {
   const [selection, setSelection] = useState<PMSelection>({ kind: 'none' })
   const [drawerMode, setDrawerMode] = useState<PMDrawerMode>('closed')
-  const [projectTab, setProjectTab] = useState<'project' | 'features'>('project')
+  const [projectTab, setProjectTab] = useState<'project' | 'features' | 'prds'>('project')
+  const [reviewPlan, setReviewPlan] = useState<{ prd: PRDDocument; tickets: GeneratedPlanTicket[] } | null>(null)
+  const [reviewSprintId, setReviewSprintId] = useState('')
 
   // Land on the first project so the PM surface opens with content, not an empty state.
   useEffect(() => {
@@ -1436,6 +1440,18 @@ export function ProductManagerPanel({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [drawerOpen])
 
+  const productStages = [
+    { label: 'PROJECTS', color: '#00e5ff', count: projects.length, items: projects.slice(0, 3).map((item) => ({ id: item.id, text: item.name, sel: selection.kind === 'project' && selection.id === item.id, click: () => handleSelect({ kind: 'project', id: item.id }) })) },
+    { label: 'FEATURES', color: '#a78bfa', count: selectedProject ? features.filter((item) => item.project_id === selectedProject.id).length : features.length, items: (selectedProject ? features.filter((item) => item.project_id === selectedProject.id) : features).slice(0, 3).map((item) => ({ id: item.id, text: item.title, sel: selection.kind === 'feature' && selection.id === item.id, click: () => handleSelect({ kind: 'feature', id: item.id, projectId: item.project_id }) })) },
+    { label: 'STORIES', color: '#f59e0b', count: tickets.filter((item) => !selectedProject || item.project_id === selectedProject.id).length, items: tickets.filter((item) => !selectedProject || item.project_id === selectedProject.id).slice(0, 3).map((item) => ({ id: item.ticket_id, text: `${item.ticket_key} · ${item.title}`, sel: false, click: () => item.prd_id && handleSelect({ kind: 'prd', id: item.prd_id, projectId: selectedProject?.id }) })) }
+  ]
+  const deliveryStages = [
+    { label: 'TEAMS', color: '#34d399', count: squads.reduce((sum, squad) => sum + squad.developers.length, 0), items: [{ id: 'team-members', text: `${squads.reduce((sum, squad) => sum + squad.developers.length, 0)} people available`, sel: false, click: () => undefined }] },
+    { label: 'SQUADS', color: '#fb7185', count: squads.length, items: squads.slice(0, 3).map((item) => ({ id: item.id, text: `${item.name} · ${item.developers.length} members`, sel: item.id === activeSquadId, click: () => undefined })) }
+  ]
+  const activeSquad = squads.find((squad) => squad.id === activeSquadId)
+  const renderStageCard = (stage: typeof productStages[number]) => <div key={stage.label} style={{ minWidth: '190px', minHeight: '126px', flex: '1 1 0', padding: '16px', background: `linear-gradient(145deg, ${stage.color}18, var(--cp-bg-2) 72%)`, border: `1px solid ${stage.color}88`, borderRadius: '12px', boxShadow: `0 10px 30px ${stage.color}18, inset 0 1px 0 rgba(255,255,255,0.08)`, position: 'relative', overflow: 'hidden' }}><div style={{ position: 'absolute', top: '-18px', right: '-12px', width: '70px', height: '70px', borderRadius: '50%', background: `${stage.color}16`, filter: 'blur(2px)' }} /><SectionLabel>{stage.label}</SectionLabel><div style={{ fontSize: '30px', color: stage.color, fontWeight: 800, lineHeight: 1.1, margin: '8px 0 4px' }}>{stage.count}</div>{stage.items.map((item) => <button key={item.id} type="button" onClick={item.click} style={{ width: '100%', textAlign: 'left', marginTop: '8px', padding: '8px 9px', color: 'var(--foreground)', background: item.sel ? `${stage.color}24` : 'rgba(0,0,0,0.24)', border: `1px solid ${item.sel ? stage.color : 'var(--cp-border)'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '10px', position: 'relative' }}>{item.text}</button>)}</div>
+
   return (
     <div style={{
       display: 'flex', flex: 1, overflow: 'hidden', height: '100%',
@@ -1452,28 +1468,45 @@ export function ProductManagerPanel({
         onNewProject={handleNewProject}
       />
 
-      {/* ── Center: Overview ── */}
+      {/* ── Center: Product track + Delivery track → Sprint planning ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <section className="hero-panel" style={{ margin: '8px 10px 0' }}>
           <div className="panel-head">
             <div>
-              <div className="eyebrow">Project Center</div>
+              <div className="eyebrow">Product and Delivery Planning</div>
               <div className="workspace-header-title-row">
-                <h1 className="page-title">PROJECT CENTER</h1>
-                <div className="workspace-header-meta">
-                  <span className="workspace-header-pill workspace-header-pill-active">projects</span>
-                </div>
+                <h1 className="page-title">PRODUCT + DELIVERY → SPRINT</h1>
+                <div className="workspace-header-meta"><span className="workspace-header-pill workspace-header-pill-active">stories + squad</span></div>
               </div>
+              <div style={{ color: 'var(--muted-foreground)', fontSize: '11px', marginTop: '5px' }}>Define the work, choose who delivers it, then plan the sprint.</div>
             </div>
+            <button type="button" onClick={handleNewProject} style={{ border: '1px solid var(--cp-cyan)', background: 'rgba(0,229,255,0.08)', color: 'var(--cp-cyan)', padding: '8px 10px', fontFamily: "'Share Tech Mono', monospace", fontSize: '10px', cursor: 'pointer' }}>+ START PROJECT</button>
           </div>
         </section>
-          <ProjectCardGrid
-            projects={projects}
-            features={features}
-            squads={squads}
-            selection={selection}
-            onSelect={handleSelect}
-          />
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px 26px' }}>
+          <SectionLabel>PRODUCT TRACK · PROJECT → FEATURE → STORIES</SectionLabel>
+          <div style={{ display: 'flex', gap: '5px', alignItems: 'stretch', overflowX: 'auto', padding: '6px 0 14px' }}>{productStages.map(renderStageCard)}</div>
+          <SectionLabel>DELIVERY TRACK · TEAMS → SQUADS</SectionLabel>
+          <div style={{ display: 'flex', gap: '5px', alignItems: 'stretch', overflowX: 'auto', padding: '6px 0 14px' }}>{deliveryStages.map(renderStageCard)}</div>
+          <SectionLabel>PLANNING OUTCOME · STORIES + SQUAD → SPRINT</SectionLabel>
+          <div style={{ margin: '6px 0 18px', padding: '18px', border: '1px solid #facc1588', borderRadius: '14px', background: 'radial-gradient(circle at 50% 0%, rgba(250,204,21,0.14), rgba(250,204,21,0.035) 52%, var(--cp-bg-2) 100%)', boxShadow: '0 14px 40px rgba(250,204,21,0.12)', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <div><div style={{ color: '#facc15', fontSize: '17px', fontWeight: 800, letterSpacing: '0.03em' }}>SPRINT READINESS</div><div style={{ color: 'var(--muted-foreground)', fontSize: '11px', marginTop: '3px' }}>Approved stories + selected squad = a sprint-ready scope</div></div>
+              <div style={{ padding: '6px 10px', borderRadius: '999px', border: '1px solid #facc1566', color: '#facc15', fontSize: '9px', letterSpacing: '0.08em' }}>{activeSquad ? `SQUAD · ${activeSquad.name}` : 'SELECT A SQUAD'}</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr auto 1fr', alignItems: 'center', gap: '10px', marginTop: '18px' }}>
+              <div style={{ padding: '12px', borderRadius: '9px', background: 'rgba(245,158,11,0.12)', border: '1px solid #f59e0b55' }}><SectionLabel>PRODUCT INPUT</SectionLabel><strong style={{ display: 'block', color: '#f59e0b', fontSize: '24px', marginTop: '4px' }}>{linkedTickets.filter((item) => item.review_status === 'accepted').length}</strong><span style={{ color: 'var(--muted-foreground)', fontSize: '10px' }}>stories ready</span></div>
+              <div style={{ color: '#facc15', fontSize: '24px', fontWeight: 800 }}>+</div>
+              <div style={{ padding: '12px', borderRadius: '9px', background: 'rgba(251,113,133,0.12)', border: '1px solid #fb718555' }}><SectionLabel>DELIVERY INPUT</SectionLabel><strong style={{ display: 'block', color: '#fb7185', fontSize: '18px', marginTop: '7px' }}>{activeSquad?.name || 'No squad selected'}</strong><span style={{ color: 'var(--muted-foreground)', fontSize: '10px' }}>{activeSquad ? `${activeSquad.developers.length} members` : 'choose a delivery group'}</span></div>
+              <div style={{ color: '#facc15', fontSize: '24px', fontWeight: 800 }}>→</div>
+              <div style={{ padding: '12px', borderRadius: '9px', background: 'rgba(250,204,21,0.14)', border: '1px solid #facc1588' }}><SectionLabel>COMMITMENT</SectionLabel><strong style={{ display: 'block', color: '#facc15', fontSize: '18px', marginTop: '7px' }}>{tickets.filter((item) => Boolean(item.sprint_id)).length} in sprint</strong><span style={{ color: 'var(--muted-foreground)', fontSize: '10px' }}>scope to plan</span></div>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '4px' }}>
+            {[['Feature briefs (PRDs)', projectPrds.length, 'feature intent captured locally'], ['Stories ready for planning', linkedTickets.filter((item) => item.review_status === 'accepted').length, 'accepted and ready for a squad'], ['Stories without an owner', tickets.filter((item) => !item.assignee && !item.suggested_owner).length, 'assign before finalizing']].map(([label, count, hint]) => <div key={String(label)} style={{ padding: '12px', border: '1px solid var(--cp-border)', background: 'var(--cp-bg-2)' }}><SectionLabel>{label}</SectionLabel><strong style={{ color: 'var(--cp-cyan)', fontSize: '20px' }}>{count}</strong><div style={{ color: 'var(--muted-foreground)', fontSize: '10px', marginTop: '4px' }}>{hint}</div></div>)}
+          </div>
+          <div style={{ marginTop: '14px', padding: '12px', border: '1px solid var(--cp-border)', background: 'rgba(0,229,255,0.025)', color: 'var(--muted-foreground)', fontSize: '11px' }}><strong style={{ color: 'var(--cp-cyan)' }}>PLANNING RULE · </strong>Stories come from the Product track. Squads come from the Delivery track. Sprint planning brings them together.</div>
+        </div>
       </div>
 
       {/* ── Right Drawer (slides in from right) ── */}
@@ -1576,6 +1609,32 @@ export function ProductManagerPanel({
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+            {projectTab === 'prds' && (
+              <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+                <SectionLabel>PRDs in Project</SectionLabel>
+                <div style={{ display: 'grid', gap: '7px' }}>
+                  {projectPrds.length === 0 && <div style={{ padding: '18px', color: 'var(--muted-foreground)', fontSize: '11px' }}>No PRDs yet. Convert a feature to create one.</div>}
+                  {projectPrds.map((prd) => {
+                    const epic = prd.epic_summary || generateOneLineEpic(prd.title, prd.content)
+                    return <div key={prd.id} style={{ padding: '10px', border: selection.kind === 'prd' && selection.id === prd.id ? '1px solid var(--cp-cyan)' : '1px solid var(--cp-border)', background: 'var(--cp-bg-2)' }}>
+                      <button type="button" onClick={() => handleSelect({ kind: 'prd', id: prd.id, projectId: prd.project_id })} style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', border: 0, background: 'transparent', color: 'var(--foreground)', textAlign: 'left', cursor: 'pointer', padding: 0 }}><FileText size={12} style={{ color: 'var(--cp-cyan)' }} /><span style={{ flex: 1, fontSize: '11px' }}>{prd.title}</span><StatusChip status={prd.status} /></button>
+                      <div style={{ margin: '8px 0', color: 'var(--muted-foreground)', fontSize: '10px' }}>EPIC · {epic}</div>
+                      <div style={{ display: 'flex', gap: '6px' }}><button type="button" onClick={() => onSavePRD({ ...prd, epic_summary: epic, lastUpdated: new Date().toISOString() })} style={{ padding: '5px 8px', border: '1px solid var(--cp-cyan)', background: 'rgba(0,229,255,0.08)', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", fontSize: '9px', cursor: 'pointer' }}>GENERATE EPIC</button><button type="button" onClick={() => { setReviewPlan({ prd: { ...prd, epic_summary: epic }, tickets: decomposeEpicIntoTickets(epic) }); setReviewSprintId('') }} style={{ padding: '5px 8px', border: '1px solid #f59e0b', background: 'rgba(245,158,11,0.08)', color: '#f59e0b', fontFamily: "'Share Tech Mono', monospace", fontSize: '9px', cursor: 'pointer' }}>GENERATE STORIES</button></div>
+                    </div>
+                  })}
+                </div>
+                {reviewPlan && <div style={{ marginTop: '16px', padding: '12px', border: '1px solid #f59e0b', background: 'rgba(245,158,11,0.05)' }}>
+                  <SectionLabel>Review generated stories before finalizing</SectionLabel>
+                  <select aria-label="Planning sprint" value={reviewSprintId} onChange={(event) => setReviewSprintId(event.target.value)} style={{ width: '100%', marginBottom: '8px', background: 'var(--cp-bg-2)', color: 'var(--foreground)', border: '1px solid var(--cp-border)', fontSize: '10px', padding: '4px' }}><option value="">Backlog (no sprint)</option>{sprintPlans.map((sprint) => <option key={sprint.id} value={sprint.id}>{sprint.name}</option>)}</select>
+                  {reviewPlan.tickets.map((ticket, index) => <div key={ticket.id} style={{ padding: '8px', marginBottom: '7px', border: '1px solid var(--cp-border)', background: 'var(--cp-bg-2)', opacity: ticket.review_status === 'rejected' ? 0.55 : 1 }}>
+                    <input aria-label={`Story ${index + 1} title`} value={ticket.title} onChange={(event) => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item) })} style={{ width: '100%', boxSizing: 'border-box', marginBottom: '5px', background: 'transparent', color: 'var(--foreground)', border: '1px solid var(--cp-border)', padding: '5px', fontSize: '11px' }} />
+                    <textarea aria-label={`Story ${index + 1} description`} value={ticket.description} onChange={(event) => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item) })} rows={2} style={{ width: '100%', boxSizing: 'border-box', background: 'transparent', color: 'var(--foreground)', border: '1px solid var(--cp-border)', padding: '5px', fontSize: '10px' }} />
+                    <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}><select aria-label={`Story ${index + 1} priority`} value={ticket.priority} onChange={(event) => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, priority: event.target.value as any } : item) })} style={{ flex: 1, background: 'var(--cp-bg-2)', color: 'var(--foreground)', border: '1px solid var(--cp-border)', fontSize: '10px' }}><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select><button type="button" onClick={() => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, review_status: 'accepted' } : item) })} style={{ color: 'var(--cp-green)', background: 'transparent', border: '1px solid var(--cp-green)', fontSize: '9px' }}>ACCEPT</button><button type="button" onClick={() => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, review_status: 'rejected' } : item) })} style={{ color: '#ff5f56', background: 'transparent', border: '1px solid #ff5f56', fontSize: '9px' }}>REJECT</button><button type="button" onClick={() => { const replacement = decomposeEpicIntoTickets(reviewPlan.prd.epic_summary || 'the feature outcome')[index]; if (replacement) setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? replacement : item) }) }} style={{ color: '#f59e0b', background: 'transparent', border: '1px solid #f59e0b', fontSize: '9px' }}>REGENERATE</button></div>
+                  </div>)}
+                  <button type="button" disabled={!reviewPlan.tickets.some((ticket) => ticket.review_status === 'accepted')} onClick={() => { onGeneratePlan?.(reviewPlan.prd, reviewPlan.tickets.filter((ticket) => ticket.review_status === 'accepted'), reviewSprintId || undefined); setReviewPlan(null) }} style={{ marginTop: '4px', padding: '7px 10px', border: '1px solid var(--cp-cyan)', color: 'var(--cp-cyan)', background: 'rgba(0,229,255,0.08)', fontSize: '10px' }}>FINALIZE ACCEPTED STORIES</button>
+                </div>}
               </div>
             )}
           </div>

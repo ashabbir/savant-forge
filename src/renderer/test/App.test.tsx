@@ -20,8 +20,18 @@ describe('App', () => {
     expect(screen.getByText('athena chat')).toBeTruthy()
     expect(screen.getByText('blueprints')).toBeTruthy()
 
-    // Click projects tab to reveal sync button
-    fireEvent.click(screen.getByText('projects'))
-    expect(screen.getByText('sync')).toBeTruthy()
+    // Each funnel stage must have independent selection state even when stages share a legacy content tab.
+    fireEvent.click(screen.getByTestId('tab-team'))
+    expect(screen.getByTestId('tab-team').className).toContain('active')
+    expect(screen.getByTestId('tab-squad').className).not.toContain('active')
+
+    fireEvent.click(screen.getByTestId('tab-squad'))
+    expect(screen.getByTestId('tab-squad').className).toContain('active')
+    expect(screen.getByTestId('tab-team').className).not.toContain('active')
+
+    fireEvent.click(screen.getByTestId('tab-blueprint'))
+    expect(screen.getByTestId('tab-blueprint').className).toContain('active')
+    expect(screen.getByTestId('tab-squad').className).not.toContain('active')
+
   })
 })

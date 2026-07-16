@@ -24,10 +24,11 @@ describe('athenaContext', () => {
   })
 
   describe('fetchAthenaCodeContext', () => {
-    it('never fetches codebase context', async () => {
+    it('retrieves indexed Savant context for planning', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ path: 'src/App.tsx', repo: 'savant-forge', content: 'planning UI' }] }), { status: 200 }))
       const result = await fetchAthenaCodeContext('http://localhost', 'key', 'search-term', 'my-repo')
-      expect(result).toEqual([])
-      expect(fetch).not.toHaveBeenCalled()
+      expect(result).toEqual([{ path: 'src/App.tsx', repo: 'savant-forge', content: 'planning UI' }])
+      expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/context/search?'), expect.objectContaining({ headers: { 'X-API-Key': 'key' } }))
     })
   })
 
@@ -63,10 +64,11 @@ describe('athenaContext', () => {
   })
 
   describe('formatAthenaContextHits', () => {
-    it('reports that codebase context is disabled', () => {
+    it('formats retrieved context with source labels', () => {
       const hits = [{ path: 'a.js', repo: 'repo', content: 'code-a' }]
       const result = formatAthenaContextHits(hits)
-      expect(result).toBe('Codebase context is disabled for Athena.')
+      expect(result).toContain('repo/a.js')
+      expect(result).toContain('code-a')
     })
   })
 

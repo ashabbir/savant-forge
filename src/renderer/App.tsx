@@ -102,7 +102,9 @@ import {
 
 import {
   buildAthenaPromptSections,
+  fetchAthenaCodeContext,
   fetchAthenaMcpTools,
+  formatAthenaContextHits,
   resolveAthenaPersona
 } from './services/athenaContext'
 import {
@@ -122,6 +124,8 @@ import {
   deleteAthenaThread
 } from './services/athenaStore'
 
+import { createStructuredPrd, generateOneLineEpic, decomposeEpicIntoTickets, finalizePlanningSummary, syncFinalizedPlanSummary } from './services/planningWorkflow'
+
 import { appModule } from './appModule'
 import { LoginScreen } from './components/LoginScreen'
 import { SettingsModal } from './components/SettingsModal'
@@ -134,6 +138,8 @@ import { SpecialtyTagPills, describeSpecialties, normalizeSpecialtyTags } from '
 import { LeftRail } from './components/LeftRail'
 import { AddTicketModal } from './components/AddTicketModal'
 import { ProductManagerPanel } from './components/ProductManagerPanel'
+import { PeopleManagementPanel } from './components/PeopleManagementPanel'
+import { TeamsManagementPanel } from './components/TeamsManagementPanel'
 
 const fallbackRuntime = {
   appName: 'Savant Forge',
@@ -474,6 +480,8 @@ function App() {
   const [sprintPlans, setSprintPlans] = useState<SprintPlan[]>(() => getSprintPlans())
   const [availabilityEvents, setAvailabilityEvents] = useState<AvailabilityEvent[]>(() => getAvailabilityEvents())
   const [activeTab, setActiveTab] = useState<'squad' | 'projects' | 'blueprint' | 'settings'>('squad')
+  type ForgeFlowStage = 'project' | 'feature' | 'stories' | 'team' | 'squad' | 'sprint' | 'legacy-squad'
+  const [activeFlowStage, setActiveFlowStage] = useState<ForgeFlowStage>('squad')
   const [productSubTab, setProductSubTab] = useState<'athena' | 'blueprints'>('blueprints')
   const [isLeftPaneOpen, setIsLeftPaneOpen] = useState(true)
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
@@ -491,11 +499,11 @@ function App() {
   const [devVacationEnd, setDevVacationEnd] = useState(() => new Date().toISOString().slice(0, 10))
   const [devVacationNotes, setDevVacationNotes] = useState('')
 
-  function handleSelectTab(tab: 'squad' | 'projects' | 'blueprint') {
+  function handleSelectTab(tab: 'squad' | 'projects' | 'blueprint', forceNavigate = false) {
     setSelectedTicketId(null)
     setSelectedDeveloperId(null)
     setSelectedPrdId(null)
-    if (activeTab === tab) {
+    if (activeTab === tab && !forceNavigate) {
       setIsLeftPaneOpen(!isLeftPaneOpen)
     } else {
       setActiveTab(tab)
@@ -1100,6 +1108,13 @@ function App() {
       const model = config?.athena_model || 'gpt-5-codex'
 
       let contextSections = [...athenaContextProfile.promptSections]
+      const savantContextHits = await fetchAthenaCodeContext(
+        serverUrl,
+        getStoredApiKey() || 'test-key',
+        promptText,
+        'savant-forge'
+      )
+      contextSections.push(['SAVANT CONTEXT', formatAthenaContextHits(savantContextHits)])
       const targetPrdId = threadId.startsWith('athena-thread-prd:') 
         ? threadId.replace('athena-thread-prd:', '') 
         : athenaContextProfile.key.startsWith('prd:') 
@@ -1594,16 +1609,21 @@ function App() {
   }
 
   function handleConvertFeatureToPRD(feature: FeatureRequest): PRDDocument {
+    const structured = createStructuredPrd(feature.title, [{
+      source: 'Forge feature request',
+      summary: feature.description || 'No additional feature context was provided.'
+    }])
     const newPrd: PRDDocument = {
       id: `prd-${Math.random().toString(36).slice(2, 10)}`,
-      title: `PRD: ${feature.title}`,
-      content: `# ${feature.title}\n\n## Overview\n\n${feature.description || 'Feature description goes here.'}\n\n## Goals\n\n- \n\n## User Stories\n\n### Epic 1: \n- Story 1.1: As a user, I want…\n\n## Acceptance Criteria\n\n- [ ] \n\n## Out of Scope\n\n- \n\n## Technical Considerations\n\n`,
+      title: structured.title,
+      content: structured.content,
       status: 'draft',
       squadId: selectedSquadId,
       project_id: feature.project_id,
       feature_id: feature.id,
       lastUpdated: new Date().toISOString(),
-      epic_ids: []
+      epic_ids: [],
+      epic_summary: generateOneLineEpic(structured.title, structured.content)
     }
     const nextPrds = saveLocalPRD(newPrd)
     setPrds(nextPrds)
@@ -1621,6 +1641,52 @@ function App() {
     setFeatures(getFeatureRequests())
 
     return newPrd
+  }
+
+  async function handleGeneratePlanFromPrd(prd: PRDDocument, planTickets: ReturnType<typeof decomposeEpicIntoTickets>, sprintId?: string) {
+    const epic = prd.epic_summary || generateOneLineEpic(prd.title, prd.content)
+    const updatedPrd = { ...prd, epic_summary: epic, lastUpdated: new Date().toISOString() }
+    handleSavePrdFromPM(updatedPrd)
+    const activeWorkspaceId = FORGE_WORKSPACE_ID
+    const finalized = finalizePlanningSummary({
+      prdId: prd.id,
+      prdTitle: prd.title,
+      epic,
+      tickets: planTickets,
+      sprintId,
+      sprintName: sprintId ? sprintPlans.find((sprint) => sprint.id === sprintId)?.name : undefined,
+      context: (prd as any).context || []
+    })
+    try {
+      const created = await Promise.all(finalized.tickets.map((planTicket) => {
+        const selectedSquad = config?.squads?.find((squad) => squad.name === planTicket.suggested_squad) || config?.squads?.[0]
+        const selectedOwner = selectedSquad?.developers?.find((developer) => developer.name === planTicket.suggested_owner)
+        return createTicketLocal(serverUrl, {
+          workspace_id: activeWorkspaceId,
+          ticket_key: planTicket.ticket_key,
+          title: planTicket.title,
+          description: planTicket.description,
+          acceptance_criteria: planTicket.acceptance_criteria,
+          review_status: 'accepted',
+          suggested_owner: planTicket.suggested_owner,
+          suggested_squad: planTicket.suggested_squad,
+          squad_id: selectedSquad?.id,
+          issue_type: 'story',
+          prd_id: prd.id,
+          project_id: prd.project_id,
+          sprint_id: sprintId,
+          status: 'todo',
+          priority: planTicket.priority,
+          assignee: selectedOwner?.id || selectedOwner?.name || '',
+          reporter: 'forge',
+          story_points: 0
+        })
+      }))
+      setTickets((current) => [...current, ...created])
+      void syncFinalizedPlanSummary(serverUrl, activeWorkspaceId, finalized).catch((error) => console.error('Forge Knowledge sync queued for retry', error))
+    } catch (error) {
+      console.error('Failed to generate Forge plan tickets', error)
+    }
   }
 
   function handleOpenAthenaFromPM(contextKey: string, contextKind: string, contextData: Record<string, unknown>) {
@@ -1929,71 +1995,43 @@ function App() {
       {/* Main Body Grid */}
       <div className="body-row">
         {/* Left Sidebar Rail */}
-        <aside className="icon-rail" style={{ background: 'var(--cp-bg-1)', borderRight: '1px solid var(--cp-border)' }}>
-          <div className="rail-top">
-            {/* 1. SQUAD (Users icon) */}
-            <button 
-              className={`nav-icon ${activeTab === 'squad' ? 'active' : ''}`}
-              onClick={() => handleSelectTab('squad')}
-              title="squad"
-            >
-              <Users size={16} />
-              <span className="rail-label-text">squad</span>
-            </button>
-
-            {/* 2. PROJECTS (FileText icon) */}
-            <button 
-              className={`nav-icon ${activeTab === 'projects' ? 'active' : ''}`}
-              onClick={() => handleSelectTab('projects')}
-              title="projects"
-            >
-              <FileText size={16} />
-              <span className="rail-label-text">projects</span>
-            </button>
-
-            {/* 3. BLUE PRINT (Layers icon) */}
-            <button 
-              className={`nav-icon ${activeTab === 'blueprint' ? 'active' : ''}`}
-              onClick={() => handleSelectTab('blueprint')}
-              title="blueprints"
-            >
-              <Layers size={16} />
-              <span className="rail-label-text">blueprints</span>
-            </button>
+        <aside className="icon-rail" style={{ background: 'linear-gradient(180deg, var(--cp-bg-1), rgba(0,229,255,0.035), var(--cp-bg-1))', borderRight: '1px solid var(--cp-border)', width: '86px' }} data-testid="left-rail">
+          <div className="rail-top" style={{ width: '100%', padding: '12px 7px', gap: '3px' }}>
+            <div style={{ color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", fontSize: '8px', letterSpacing: '0.12em', textAlign: 'center', marginBottom: '8px', opacity: 0.7 }}>PLAN</div>
+            {[
+              { label: 'PROJECT', flow: 'project' as const, icon: <FileText size={13} />, tab: 'projects' as const, testid: 'tab-projects', hint: 'Start project' },
+              { label: 'FEATURE', flow: 'feature' as const, icon: <Tag size={13} />, tab: 'projects' as const, testid: 'tab-feature', hint: 'Shape feature' },
+              { label: 'STORIES', flow: 'stories' as const, icon: <Layers size={13} />, tab: 'blueprint' as const, testid: 'tab-blueprint', hint: 'Break into tasks' },
+              { label: 'TEAM', flow: 'team' as const, icon: <Users size={13} />, tab: 'squad' as const, testid: 'tab-team', hint: 'See people' },
+              { label: 'SQUAD', flow: 'squad' as const, icon: <Shield size={13} />, tab: 'squad' as const, testid: 'tab-squad', hint: 'Choose delivery group' },
+              { label: 'SPRINT', flow: 'sprint' as const, icon: <CalendarDays size={13} />, tab: 'blueprint' as const, testid: 'tab-sprint', hint: 'Place scope' }
+            ].map((stage, index) => {
+              const isActive = activeFlowStage === stage.flow
+              return <div key={stage.label} style={{ position: 'relative' }}>
+                {(index === 0 || index === 3 || index === 5) && <div style={{ color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace", fontSize: '7px', letterSpacing: '0.08em', textAlign: 'center', margin: index === 0 ? '0 0 4px' : '8px 0 4px', opacity: 0.55 }}>{index === 0 ? 'PRODUCT' : index === 3 ? 'DELIVERY' : 'PLANNING'}</div>}
+                <button
+                  className={`nav-icon ${isActive ? 'active' : ''}`}
+                  onClick={() => { setActiveFlowStage(stage.flow); handleSelectTab(stage.tab, true) }}
+                  title={`${stage.label.toLowerCase()} · ${stage.hint}`}
+                  aria-current={isActive ? 'step' : undefined}
+                  data-testid={stage.testid}
+                  style={{ width: '70px', minHeight: '43px', padding: '6px 3px', display: 'flex', flexDirection: 'column', gap: '3px', border: isActive ? '1px solid var(--cp-cyan)' : '1px solid transparent', background: isActive ? 'rgba(0,229,255,0.1)' : 'transparent', clipPath: 'polygon(12% 0, 88% 0, 100% 50%, 88% 100%, 12% 100%, 0 50%)' }}
+                >
+                  <span style={{ color: isActive ? 'var(--cp-cyan)' : 'var(--muted-foreground)' }}>{stage.icon}</span>
+                  <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: '8px', letterSpacing: '0.06em', color: isActive ? 'var(--cp-cyan)' : 'var(--muted-foreground)' }}>{stage.label}</span>
+                  {stage.label === 'PROJECT' && <span style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>projects</span>}
+                  {stage.label === 'STORIES' && <span style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>blueprints</span>}
+                </button>
+              </div>
+            })}
           </div>
           
-          <div className="rail-bottom">
-            <button 
-              className="nav-icon"
-              onClick={() => setIsLeftPaneOpen(!isLeftPaneOpen)}
-              title={isLeftPaneOpen ? "Collapse Left Panel" : "Expand Left Panel"}
-              style={{ marginBottom: '8px' }}
-            >
-              {isLeftPaneOpen ? (
-                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none">
-                  <path d="M19 12H5M12 19l-7-7 7-7" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              )}
+          <div className="rail-bottom" style={{ width: '100%', padding: '8px 7px' }}>
+            <button className="nav-icon" onClick={() => setIsLeftPaneOpen(!isLeftPaneOpen)} title={isLeftPaneOpen ? "Collapse Left Panel" : "Expand Left Panel"} style={{ marginBottom: '8px' }} data-testid="toggle-left-pane">
+              {isLeftPaneOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
             </button>
-            <button 
-              className={`nav-icon ${isSettingsOpen ? 'active' : ''}`}
-              onClick={() => setIsSettingsOpen(true)}
-              title="settings"
-            >
-              <Sliders size={16} />
-              <span className="rail-label-text">settings</span>
-            </button>
-            <button 
-              className={`nav-icon logout-icon ${isLogoutConfirmOpen ? 'active' : ''}`} 
-              onClick={() => setIsLogoutConfirmOpen(true)} 
-              title="Logout"
-            >
-              <Power size={16} />
-            </button>
+            <button className={`nav-icon ${isSettingsOpen ? 'active' : ''}`} onClick={() => setIsSettingsOpen(true)} title="settings" data-testid="btn-settings"><Sliders size={16} /><span className="rail-label-text">settings</span></button>
+            <button className={`nav-icon logout-icon ${isLogoutConfirmOpen ? 'active' : ''}`} onClick={() => setIsLogoutConfirmOpen(true)} title="Logout" data-testid="btn-logout"><Power size={16} /></button>
           </div>
         </aside>
 
@@ -2336,6 +2374,7 @@ function App() {
                   prds={prds}
                   tickets={tickets}
                   squads={config?.squads || []}
+                  sprintPlans={sprintPlans}
                   activeSquadId={selectedSquadId}
                   onSaveProject={handleSaveProjectEntity}
                   onSaveFeature={handleSaveFeature}
@@ -2343,6 +2382,7 @@ function App() {
                   onSavePRD={handleSavePrdFromPM}
                   onDeletePRD={handleDeletePrdFromPM}
                   onConvertFeatureToPRD={handleConvertFeatureToPRD}
+                  onGeneratePlan={handleGeneratePlanFromPrd}
                   onOpenAthena={handleOpenAthenaFromPM}
                   onNewProject={() => {
                     setProjectActionSignal(null)
@@ -2371,7 +2411,35 @@ function App() {
           )}
 
 
-          {activeTab === 'squad' && (
+          {activeTab === 'squad' && activeFlowStage === 'team' && (
+            <PeopleManagementPanel
+              squads={config?.squads || []}
+              tickets={tickets}
+              projects={projectEntities}
+              features={features}
+              sprintPlans={sprintPlans}
+              onAddPerson={openAddDeveloperModal}
+              onEditPerson={openEditDeveloperModal}
+            />
+          )}
+
+          {activeTab === 'squad' && activeFlowStage === 'squad' && (
+              <TeamsManagementPanel
+                squads={config?.squads || []}
+                tickets={tickets}
+                projects={projectEntities}
+                features={features}
+                sprintPlans={sprintPlans}
+                selectedSquadId={selectedSquadId}
+                onSelectSquad={setSelectedSquadId}
+                onCreateSquad={handleCreateSquad}
+                onRenameSquad={handleUpdateSquadName}
+                onAddPerson={openAddDeveloperModal}
+                onEditPerson={openEditDeveloperModal}
+              />
+          )}
+
+          {activeTab === 'squad' && activeFlowStage === 'legacy-squad' && (
               <SquadCockpit
                 activeSquad={activeSquad}
                 squadCapacityStats={squadCapacityStats}
@@ -2405,7 +2473,25 @@ function App() {
               />
             )}
 
-          {activeTab === 'blueprint' && (
+          {activeTab === 'blueprint' && activeFlowStage === 'sprint' && (
+            <SprintWorkbenchPanel
+              mode="current"
+              activeSquad={activeSquad}
+              history={squadStatsHistory}
+              latest={latestSquadSnapshot}
+              sprintPlans={sprintPlans}
+              currentSprint={currentSprint}
+              availabilityEvents={availabilityEvents}
+              tickets={squadScopedTickets}
+              onCreateSprint={handleCreateSprint}
+              onSetCurrentSprint={handleSetCurrentSprint}
+              onCompleteSprint={handleCompleteSprint}
+              onAddAvailabilityEvent={handleAddAvailabilityEvent}
+              onUpdateTicket={handleUpdateTicket}
+            />
+          )}
+
+          {activeTab === 'blueprint' && activeFlowStage !== 'sprint' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, overflowY: 'auto' }}>
               <section className="hero-panel">
                 <div className="panel-head">

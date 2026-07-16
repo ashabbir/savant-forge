@@ -27,20 +27,36 @@ export const ATHENA_SYSTEM_DIRECTIVE = [
 ].join(" ");
 
 export async function fetchAthenaCodeContext(baseUrl: string, apiKey: string, query: string, repo?: string) {
-  void baseUrl;
-  void apiKey;
-  void query;
-  void repo;
-  return [];
+  if (!query.trim()) return [] as AthenaContextHit[]
+  try {
+    const params = new URLSearchParams({ q: query.trim(), limit: '8' })
+    if (repo) params.set('repo', repo)
+    const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/context/search?${params}`, {
+      headers: apiKey ? { 'X-API-Key': apiKey } : {},
+      signal: AbortSignal.timeout(5000)
+    })
+    if (!response.ok) return [] as AthenaContextHit[]
+    const payload = await response.json()
+    return Array.isArray(payload?.results) ? payload.results : []
+  } catch {
+    return [] as AthenaContextHit[]
+  }
 }
 
 export async function fetchAthenaMcpTools(baseUrl: string, apiKey: string) {
-  void baseUrl
-  void apiKey
   try {
     const system = getAthenaSystem()
-    if (!system?.loadAthenaMcpTools) return []
-    const tools = await system.loadAthenaMcpTools()
+    const tools = system?.loadAthenaMcpTools
+      ? await system.loadAthenaMcpTools()
+      : await (async () => {
+          const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/mcp/tools`, {
+            headers: apiKey ? { 'X-API-Key': apiKey } : {},
+            signal: AbortSignal.timeout(5000)
+          })
+          if (!response.ok) return []
+          const payload = await response.json()
+          return Array.isArray(payload?.tools) ? payload.tools : payload
+        })()
     return Array.isArray(tools)
       ? tools.slice(0, 20).map((tool: any) => ({
           name: tool?.name || 'unknown',
@@ -68,8 +84,11 @@ export async function resolveAthenaPersona(
 }
 
 export function formatAthenaContextHits(hits: AthenaContextHit[]) {
-  void hits;
-  return "Codebase context is disabled for Athena.";
+  if (!hits.length) return 'No Savant code or memory context was available.'
+  return hits.slice(0, 8).map((hit, index) => {
+    const source = [hit.repo, hit.path].filter(Boolean).join('/') || hit.title || `context-${index + 1}`
+    return `- ${source}: ${String(hit.content || hit.title || '').trim()}`
+  }).join('\n')
 }
 
 export function buildAthenaPromptSections(sections: Array<[string, string]>) {
