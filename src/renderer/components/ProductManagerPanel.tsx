@@ -1512,15 +1512,21 @@ export function ProductManagerPanel({
       background: 'var(--cp-bg-0)',
       position: 'relative'
     }}>
-      {/* ── Left: Project Tree ── */}
-      <ProjectTree
-        projects={projects}
-        features={features}
-        squads={squads}
-        selection={selection}
-        onSelect={handleSelect}
-        onNewProject={handleNewProject}
-      />
+      {/* The Overview page is intentionally full-width. Project navigation and
+          the project tree only belong to the project-scoped page. */}
+      {openInitialProject && (
+        <>
+          {/* ── Left: Project Tree ── */}
+          <ProjectTree
+            projects={projects}
+            features={features}
+            squads={squads}
+            selection={selection}
+            onSelect={handleSelect}
+            onNewProject={handleNewProject}
+          />
+        </>
+      )}
 
       {/* ── Center: Product track + Delivery track → Sprint planning ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
