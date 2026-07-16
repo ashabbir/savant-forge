@@ -92,6 +92,7 @@ export interface PMPanelProps {
   onSelectPrd?: (prdId: string | null) => void
   onGeneratePlan?: (prd: PRDDocument, tickets: GeneratedPlanTicket[], sprintId?: string) => void | Promise<void>
   openInitialProject?: boolean
+  onNavigateToFlow?: (flow: 'project' | 'squad' | 'sprint', entityId?: string) => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1233,7 +1234,7 @@ function EditDrawer({
 export function ProductManagerPanel({
   projects, features, prds, tickets, squads, sprintPlans = [], activeSquadId,
   onSaveProject, onSaveFeature, onDeleteFeature, onSavePRD, onDeletePRD,
-  onConvertFeatureToPRD, onOpenAthena, onNewProject, onSelectionChange, onRequestEditProject, onRequestDeleteProject, onProjectDrawerChange, projectActionSignal, selectedPrdId, onSelectPrd, onGeneratePlan, openInitialProject
+  onConvertFeatureToPRD, onOpenAthena, onNewProject, onSelectionChange, onRequestEditProject, onRequestDeleteProject, onProjectDrawerChange, projectActionSignal, selectedPrdId, onSelectPrd, onGeneratePlan, openInitialProject, onNavigateToFlow
 }: PMPanelProps) {
   const [selection, setSelection] = useState<PMSelection>({ kind: 'none' })
   const [drawerMode, setDrawerMode] = useState<PMDrawerMode>('closed')
@@ -1495,13 +1496,16 @@ export function ProductManagerPanel({
   }, [drawerOpen])
 
   const productStages = [
-    { label: 'PROJECTS', color: '#00e5ff', count: projects.length, items: projects.slice(0, 3).map((item) => ({ id: item.id, text: item.name, sel: selection.kind === 'project' && selection.id === item.id, click: () => handleSelect({ kind: 'project', id: item.id }) })) },
+    { label: 'PROJECTS', color: '#00e5ff', count: projects.length, items: projects.slice(0, 3).map((item) => ({ id: item.id, text: item.name, sel: selection.kind === 'project' && selection.id === item.id, click: () => { onNavigateToFlow?.('project', item.id); handleSelect({ kind: 'project', id: item.id }) } })) },
     { label: 'FEATURES', color: '#a78bfa', count: selectedProject ? features.filter((item) => item.project_id === selectedProject.id).length : features.length, items: (selectedProject ? features.filter((item) => item.project_id === selectedProject.id) : features).slice(0, 3).map((item) => ({ id: item.id, text: item.title, sel: selection.kind === 'feature' && selection.id === item.id, click: () => handleSelect({ kind: 'feature', id: item.id, projectId: item.project_id }) })) },
     { label: 'STORIES', color: '#f59e0b', count: tickets.filter((item) => !selectedProject || item.project_id === selectedProject.id).length, items: tickets.filter((item) => !selectedProject || item.project_id === selectedProject.id).slice(0, 3).map((item) => ({ id: item.ticket_id, text: `${item.ticket_key} · ${item.title}`, sel: false, click: () => item.prd_id && handleSelect({ kind: 'prd', id: item.prd_id, projectId: selectedProject?.id }) })) }
   ]
   const deliveryStages = [
-    { label: 'TEAMS', color: '#34d399', count: squads.reduce((sum, squad) => sum + squad.developers.length, 0), items: [{ id: 'team-members', text: `${squads.reduce((sum, squad) => sum + squad.developers.length, 0)} people available`, sel: false, click: () => undefined }] },
-    { label: 'SQUADS', color: '#fb7185', count: squads.length, items: squads.slice(0, 3).map((item) => ({ id: item.id, text: `${item.name} · ${item.developers.length} members`, sel: item.id === activeSquadId, click: () => undefined })) }
+    { label: 'TEAMS', color: '#34d399', count: squads.reduce((sum, squad) => sum + squad.developers.length, 0), items: [{ id: 'team-members', text: `${squads.reduce((sum, squad) => sum + squad.developers.length, 0)} people available`, sel: false, click: () => onNavigateToFlow?.('squad') }] },
+    { label: 'SQUADS', color: '#fb7185', count: squads.length, items: squads.slice(0, 3).map((item) => ({ id: item.id, text: `${item.name} · ${item.developers.length} members`, sel: item.id === activeSquadId, click: () => onNavigateToFlow?.('squad', item.id) })) }
+  ]
+  const sprintStages = [
+    { label: 'SPRINTS', color: '#facc15', count: sprintPlans.length, items: sprintPlans.slice(0, 3).map((item) => ({ id: item.id, text: `${item.name} · ${item.status}`, sel: item.status === 'current', click: () => onNavigateToFlow?.('sprint', item.id) })) }
   ]
   const activeSquad = squads.find((squad) => squad.id === activeSquadId)
   const showPlanningOverview = !(drawerOpen && drawerMode === 'view-project')
@@ -1550,6 +1554,8 @@ export function ProductManagerPanel({
           <div style={{ display: 'flex', gap: '5px', alignItems: 'stretch', overflowX: 'auto', padding: '6px 0 14px' }}>{productStages.map(renderStageCard)}</div>
           <SectionLabel>DELIVERY TRACK · TEAMS → SQUADS</SectionLabel>
           <div style={{ display: 'flex', gap: '5px', alignItems: 'stretch', overflowX: 'auto', padding: '6px 0 14px' }}>{deliveryStages.map(renderStageCard)}</div>
+          <SectionLabel>PLANNING TRACK · STORIES + SQUAD → SPRINT</SectionLabel>
+          <div style={{ display: 'flex', gap: '5px', alignItems: 'stretch', overflowX: 'auto', padding: '6px 0 14px' }}>{sprintStages.map(renderStageCard)}</div>
           <SectionLabel>PLANNING OUTCOME · STORIES + SQUAD → SPRINT</SectionLabel>
           <div style={{ margin: '6px 0 18px', padding: '18px', border: '1px solid #facc1588', borderRadius: '14px', background: 'radial-gradient(circle at 50% 0%, rgba(250,204,21,0.14), rgba(250,204,21,0.035) 52%, var(--cp-bg-2) 100%)', boxShadow: '0 14px 40px rgba(250,204,21,0.12)', position: 'relative', overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>

@@ -2492,6 +2492,18 @@ function App() {
                   }}
                   projectActionSignal={projectActionSignal}
                   openInitialProject={activeFlowStage === 'project'}
+                  onNavigateToFlow={(flow, entityId) => {
+                    setActiveFlowStage(flow)
+                    if (flow === 'project') {
+                      handleSelectTab('projects', true)
+                    } else if (flow === 'squad') {
+                      if (entityId) setSelectedSquadId(entityId)
+                      handleSelectTab('squad', true)
+                    } else {
+                      if (entityId) setSelectedSprintId(entityId)
+                      handleSelectTab('blueprint', true)
+                    }
+                  }}
                   selectedPrdId={selectedPrdId}
                   onSelectPrd={(prdId) => {
                     setSelectedPrdId(prdId)
