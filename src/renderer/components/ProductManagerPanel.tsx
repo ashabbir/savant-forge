@@ -1504,6 +1504,7 @@ export function ProductManagerPanel({
     { label: 'SQUADS', color: '#fb7185', count: squads.length, items: squads.slice(0, 3).map((item) => ({ id: item.id, text: `${item.name} · ${item.developers.length} members`, sel: item.id === activeSquadId, click: () => undefined })) }
   ]
   const activeSquad = squads.find((squad) => squad.id === activeSquadId)
+  const showPlanningOverview = !(drawerOpen && drawerMode === 'view-project')
   const renderStageCard = (stage: typeof productStages[number]) => <div key={stage.label} style={{ minWidth: '190px', minHeight: '126px', flex: '1 1 0', padding: '16px', background: `linear-gradient(145deg, ${stage.color}18, var(--cp-bg-2) 72%)`, border: `1px solid ${stage.color}88`, borderRadius: '12px', boxShadow: `0 10px 30px ${stage.color}18, inset 0 1px 0 rgba(255,255,255,0.08)`, position: 'relative', overflow: 'hidden' }}><div style={{ position: 'absolute', top: '-18px', right: '-12px', width: '70px', height: '70px', borderRadius: '50%', background: `${stage.color}16`, filter: 'blur(2px)' }} /><SectionLabel>{stage.label}</SectionLabel><div style={{ fontSize: '30px', color: stage.color, fontWeight: 800, lineHeight: 1.1, margin: '8px 0 4px' }}>{stage.count}</div>{stage.items.map((item) => <button key={item.id} type="button" onClick={item.click} style={{ width: '100%', textAlign: 'left', marginTop: '8px', padding: '8px 9px', color: 'var(--foreground)', background: item.sel ? `${stage.color}24` : 'rgba(0,0,0,0.24)', border: `1px solid ${item.sel ? stage.color : 'var(--cp-border)'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '10px', position: 'relative' }}>{item.text}</button>)}</div>
 
   return (
@@ -1529,6 +1530,7 @@ export function ProductManagerPanel({
       )}
 
       {/* ── Center: Product track + Delivery track → Sprint planning ── */}
+      {showPlanningOverview && (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <section className="hero-panel" style={{ margin: '8px 10px 0' }}>
           <div className="panel-head">
@@ -1568,10 +1570,11 @@ export function ProductManagerPanel({
           <div style={{ marginTop: '14px', padding: '12px', border: '1px solid var(--cp-border)', background: 'rgba(0,229,255,0.025)', color: 'var(--muted-foreground)', fontSize: '11px' }}><strong style={{ color: 'var(--cp-cyan)' }}>PLANNING RULE · </strong>Stories come from the Product track. Squads come from the Delivery track. Sprint planning brings them together.</div>
         </div>
       </div>
+      )}
 
-      {/* ── Right Drawer (slides in from right) ── */}
+      {/* ── Project overview ── */}
       {drawerOpen && drawerMode === 'view-project' && selectedProject && (
-        <div style={{ position: 'absolute', inset: '0', zIndex: 20, overflow: 'hidden' }}>
+        <div style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'hidden' }}>
           <div style={{ width: '100%', height: '100%', borderLeft: '1px solid var(--cp-border)', background: 'var(--cp-bg-1)', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'slideViewDrawerIn 650ms cubic-bezier(0.16, 1, 0.3, 1)' }}>
             <style>{`
               @keyframes slideViewDrawerIn {
