@@ -1,5 +1,11 @@
 export type AthenaContextKind = 'squad' | 'developer' | 'prd' | 'ticket' | 'blueprint' | 'global' | 'project' | 'feature'
 
+export type AthenaEntityRef = {
+  type: AthenaContextKind
+  id: string
+  name: string
+}
+
 export type AthenaThreadMessage = {
   id: string
   sender: 'user' | 'assistant'
@@ -9,6 +15,7 @@ export type AthenaThreadMessage = {
 
 export type AthenaThread = {
   id: string
+  entity: AthenaEntityRef
   contextKey: string
   contextKind: AthenaContextKind
   title: string
@@ -54,7 +61,7 @@ export function loadAthenaThreads(): AthenaThread[] {
 }
 
 export function saveAthenaThreads(threads: AthenaThread[]) {
-  const normalized = threads.slice(-40).map((thread) => normalizeThread(thread))
+  const normalized = threads.map((thread) => normalizeThread(thread))
   const system = getSystemBridge()
   if (system?.saveAthenaThread) {
     normalized.forEach((thread) => system.saveAthenaThread(thread))
@@ -154,10 +161,18 @@ export function updateAthenaRun(runId: string, updater: (run: AthenaRunRecord) =
 }
 
 function normalizeThread(thread: Partial<AthenaThread>): AthenaThread {
+  const contextKind = thread.contextKind || thread.entity?.type || 'global'
+  const contextKey = thread.contextKey || (thread.entity ? `${thread.entity.type}:${thread.entity.id}` : 'global')
+  const entity = thread.entity || {
+    type: contextKind,
+    id: contextKey.includes(':') ? contextKey.slice(contextKey.indexOf(':') + 1) : contextKey,
+    name: thread.title || 'Athena'
+  }
   return {
     id: thread.id || `athena-thread-${Math.random().toString(36).slice(2, 9)}`,
-    contextKey: thread.contextKey || 'global',
-    contextKind: thread.contextKind || 'global',
+    entity: { type: entity.type, id: entity.id, name: entity.name || thread.title || 'Athena' },
+    contextKey,
+    contextKind,
     title: thread.title || 'Athena',
     messages: Array.isArray(thread.messages) ? thread.messages.map((message) => ({
       id: message?.id || `msg-${Math.random().toString(36).slice(2, 9)}`,

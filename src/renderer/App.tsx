@@ -479,9 +479,9 @@ function App() {
   const [squadStatsHistory, setSquadStatsHistory] = useState<SquadSnapshot[]>(() => getSquadStatsHistory())
   const [sprintPlans, setSprintPlans] = useState<SprintPlan[]>(() => getSprintPlans())
   const [availabilityEvents, setAvailabilityEvents] = useState<AvailabilityEvent[]>(() => getAvailabilityEvents())
-  const [activeTab, setActiveTab] = useState<'squad' | 'projects' | 'blueprint' | 'settings'>('squad')
-  type ForgeFlowStage = 'project' | 'feature' | 'stories' | 'team' | 'squad' | 'sprint' | 'legacy-squad'
-  const [activeFlowStage, setActiveFlowStage] = useState<ForgeFlowStage>('squad')
+  const [activeTab, setActiveTab] = useState<'squad' | 'projects' | 'blueprint' | 'settings'>('projects')
+  type ForgeFlowStage = 'overview' | 'project' | 'feature' | 'stories' | 'team' | 'squad' | 'sprint' | 'legacy-squad'
+  const [activeFlowStage, setActiveFlowStage] = useState<ForgeFlowStage>('overview')
   const [productSubTab, setProductSubTab] = useState<'athena' | 'blueprints'>('blueprints')
   const [isLeftPaneOpen, setIsLeftPaneOpen] = useState(true)
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
@@ -527,6 +527,7 @@ function App() {
   }
 
   const [selectedSquadId, setSelectedSquadId] = useState<string>('squad-alpha')
+  const [selectedSprintId, setSelectedSprintId] = useState<string>('')
   
   // Persistent Right Context Rail State
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null)
@@ -551,9 +552,10 @@ function App() {
   const [projectEntities, setProjectEntities] = useState<ProjectEntity[]>(() => getProjectEntities())
 
   const currentSprint = useMemo(() => {
-    if (!config?.current_sprint_id) return sprintPlans.find((plan) => plan.status === 'current') || null
-    return sprintPlans.find((plan) => plan.id === config.current_sprint_id) || sprintPlans.find((plan) => plan.status === 'current') || null
-  }, [config?.current_sprint_id, sprintPlans])
+    const squadPlans = sprintPlans.filter((plan) => plan.squad_id === selectedSquadId)
+    if (!config?.current_sprint_id) return squadPlans.find((plan) => plan.status === 'current') || null
+    return squadPlans.find((plan) => plan.id === config.current_sprint_id) || squadPlans.find((plan) => plan.status === 'current') || null
+  }, [config?.current_sprint_id, selectedSquadId, sprintPlans])
 
   // Athena Chat Console States
   const [athenaThreads, setAthenaThreads] = useState<AthenaThread[]>(() => loadAthenaThreads())
@@ -741,8 +743,9 @@ function App() {
   const athenaContextProfile = athenaContextOverride || baseAthenaContextProfile
 
   const currentAthenaThread = useMemo(() => {
-    return athenaThreads.find((thread) => thread.contextKey === athenaContextProfile.key) || null
-  }, [athenaThreads, athenaContextProfile.key])
+    return athenaThreads.find((thread) => thread.entity?.type === athenaContextProfile.kind && thread.entity?.id === (athenaContextProfile.key.includes(':') ? athenaContextProfile.key.slice(athenaContextProfile.key.indexOf(':') + 1) : athenaContextProfile.key))
+      || athenaThreads.find((thread) => thread.contextKey === athenaContextProfile.key) || null
+  }, [athenaThreads, athenaContextProfile.key, athenaContextProfile.kind])
 
   const athenaPersona = useMemo(() => {
     if (athenaContextProfile.kind === 'prd') {
@@ -1082,6 +1085,11 @@ function App() {
 
     upsertAthenaThread({
       id: threadId,
+      entity: {
+        type: athenaContextProfile.kind,
+        id: athenaContextProfile.key.includes(':') ? athenaContextProfile.key.slice(athenaContextProfile.key.indexOf(':') + 1) : athenaContextProfile.key,
+        name: threadTitle
+      },
       contextKey: athenaContextProfile.key,
       contextKind: athenaContextProfile.kind,
       title: threadTitle,
@@ -1494,6 +1502,32 @@ function App() {
     }
   }
 
+  async function ensurePrdEpic(prd: PRDDocument): Promise<JiraTicket> {
+    const project = prd.project_id ? projectEntities.find((item) => item.id === prd.project_id) : undefined
+    const candidateIds = [...(prd.epic_ids || []), project?.epic_ticket_id || ''].filter(Boolean)
+    const existing = tickets.find((ticket) =>
+      ticket.issue_type === 'epic' && candidateIds.some((candidate) => candidate === ticket.ticket_id || candidate === ticket.ticket_key)
+    )
+    if (existing) return existing
+
+    const epic = await createTicketLocal(serverUrl, {
+      workspace_id: FORGE_WORKSPACE_ID,
+      ticket_key: `FORGE-EPIC-${prd.id.replace(/[^a-z0-9]/gi, '').slice(-12)}`,
+      title: `EPIC: ${prd.title.replace(/^PRD:\s*/i, '')}`,
+      description: prd.epic_summary || generateOneLineEpic(prd.title, prd.content),
+      issue_type: 'epic',
+      prd_id: prd.id,
+      project_id: prd.project_id,
+      status: 'todo',
+      priority: 'high',
+      reporter: profile?.name || 'forge',
+      assignee: '',
+      story_points: 0
+    })
+    setTickets((current) => current.some((ticket) => ticket.ticket_id === epic.ticket_id) ? current : [...current, epic])
+    return epic
+  }
+
   async function handlePushToConfluence(prdId: string) {
     try {
       const updated = await pushToConfluence(prdId)
@@ -1516,6 +1550,12 @@ function App() {
       : `${spText} ${draft.title}`
 
     try {
+      const prd = prds.find((item) => item.id === selectedPrdId)
+      if (!prd) return
+      const epic = await ensurePrdEpic(prd)
+      if (!(prd.epic_ids || []).includes(epic.ticket_id)) {
+        handleSavePrdFromPM({ ...prd, epic_ids: [...(prd.epic_ids || []), epic.ticket_id], lastUpdated: new Date().toISOString() })
+      }
       const created = await createTicketLocal(serverUrl, {
         workspace_id: activeWorkspaceId,
         ticket_key: draft.ticket_key,
@@ -1523,7 +1563,9 @@ function App() {
         status: 'todo',
         priority: draft.priority,
         reporter: profile?.name || 'ahmed',
-        prd_id: selectedPrdId
+        prd_id: selectedPrdId,
+        issue_type: 'story',
+        epic_ticket_id: epic.ticket_id
       })
 
       setTickets(prev => [...prev, created])
@@ -1644,20 +1686,26 @@ function App() {
   }
 
   async function handleGeneratePlanFromPrd(prd: PRDDocument, planTickets: ReturnType<typeof decomposeEpicIntoTickets>, sprintId?: string) {
-    const epic = prd.epic_summary || generateOneLineEpic(prd.title, prd.content)
-    const updatedPrd = { ...prd, epic_summary: epic, lastUpdated: new Date().toISOString() }
-    handleSavePrdFromPM(updatedPrd)
-    const activeWorkspaceId = FORGE_WORKSPACE_ID
-    const finalized = finalizePlanningSummary({
-      prdId: prd.id,
-      prdTitle: prd.title,
-      epic,
-      tickets: planTickets,
-      sprintId,
-      sprintName: sprintId ? sprintPlans.find((sprint) => sprint.id === sprintId)?.name : undefined,
-      context: (prd as any).context || []
-    })
     try {
+      const epic = prd.epic_summary || generateOneLineEpic(prd.title, prd.content)
+      const epicTicket = await ensurePrdEpic({ ...prd, epic_summary: epic })
+      const updatedPrd = {
+        ...prd,
+        epic_summary: epic,
+        epic_ids: Array.from(new Set([...(prd.epic_ids || []), epicTicket.ticket_id])),
+        lastUpdated: new Date().toISOString()
+      }
+      handleSavePrdFromPM(updatedPrd)
+      const activeWorkspaceId = FORGE_WORKSPACE_ID
+      const finalized = finalizePlanningSummary({
+        prdId: prd.id,
+        prdTitle: prd.title,
+        epic,
+        tickets: planTickets,
+        sprintId,
+        sprintName: sprintId ? sprintPlans.find((sprint) => sprint.id === sprintId)?.name : undefined,
+        context: (prd as any).context || []
+      })
       const created = await Promise.all(finalized.tickets.map((planTicket) => {
         const selectedSquad = config?.squads?.find((squad) => squad.name === planTicket.suggested_squad) || config?.squads?.[0]
         const selectedOwner = selectedSquad?.developers?.find((developer) => developer.name === planTicket.suggested_owner)
@@ -1672,6 +1720,7 @@ function App() {
           suggested_squad: planTicket.suggested_squad,
           squad_id: selectedSquad?.id,
           issue_type: 'story',
+          epic_ticket_id: epicTicket.ticket_id,
           prd_id: prd.id,
           project_id: prd.project_id,
           sprint_id: sprintId,
@@ -1686,6 +1735,7 @@ function App() {
       void syncFinalizedPlanSummary(serverUrl, activeWorkspaceId, finalized).catch((error) => console.error('Forge Knowledge sync queued for retry', error))
     } catch (error) {
       console.error('Failed to generate Forge plan tickets', error)
+      throw error
     }
   }
 
@@ -1767,6 +1817,11 @@ function App() {
     if (!existing) {
       const createdThread: AthenaThread = {
         id: `athena-thread-${athenaContextProfile.key}`,
+        entity: {
+          type: athenaContextProfile.kind,
+          id: athenaContextProfile.key.includes(':') ? athenaContextProfile.key.slice(athenaContextProfile.key.indexOf(':') + 1) : athenaContextProfile.key,
+          name: getAthenaThreadTitle(athenaContextProfile.kind, athenaContextProfile.title, 'Athena')
+        },
         contextKey: athenaContextProfile.key,
         contextKind: athenaContextProfile.kind,
         title: getAthenaThreadTitle(athenaContextProfile.kind, athenaContextProfile.title, 'Athena'),
@@ -1995,11 +2050,11 @@ function App() {
       {/* Main Body Grid */}
       <div className="body-row">
         {/* Left Sidebar Rail */}
-        <aside className="icon-rail" style={{ background: 'linear-gradient(180deg, var(--cp-bg-1), rgba(0,229,255,0.035), var(--cp-bg-1))', borderRight: '1px solid var(--cp-border)', width: '86px' }} data-testid="left-rail">
-          <div className="rail-top" style={{ width: '100%', padding: '12px 7px', gap: '3px' }}>
-            <div style={{ color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", fontSize: '8px', letterSpacing: '0.12em', textAlign: 'center', marginBottom: '8px', opacity: 0.7 }}>PLAN</div>
+        <aside className="icon-rail" style={{ background: 'linear-gradient(180deg, var(--cp-bg-1), rgba(0,229,255,0.035), var(--cp-bg-1))', borderRight: '1px solid var(--cp-border)', width: '40px' }} data-testid="left-rail">
+          <div className="rail-top" style={{ width: '100%', padding: '8px 0', gap: '1px' }}>
             {[
-              { label: 'PROJECT', flow: 'project' as const, icon: <FileText size={13} />, tab: 'projects' as const, testid: 'tab-projects', hint: 'Start project' },
+              { label: 'OVERVIEW', flow: 'overview' as const, icon: <Activity size={13} />, tab: 'projects' as const, testid: 'tab-overview', hint: 'Product and delivery overview' },
+              { label: 'PROJECT', flow: 'project' as const, icon: <FileText size={13} />, tab: 'projects' as const, testid: 'tab-projects', hint: 'Open first project' },
               { label: 'FEATURE', flow: 'feature' as const, icon: <Tag size={13} />, tab: 'projects' as const, testid: 'tab-feature', hint: 'Shape feature' },
               { label: 'STORIES', flow: 'stories' as const, icon: <Layers size={13} />, tab: 'blueprint' as const, testid: 'tab-blueprint', hint: 'Break into tasks' },
               { label: 'TEAM', flow: 'team' as const, icon: <Users size={13} />, tab: 'squad' as const, testid: 'tab-team', hint: 'See people' },
@@ -2007,18 +2062,17 @@ function App() {
               { label: 'SPRINT', flow: 'sprint' as const, icon: <CalendarDays size={13} />, tab: 'blueprint' as const, testid: 'tab-sprint', hint: 'Place scope' }
             ].map((stage, index) => {
               const isActive = activeFlowStage === stage.flow
-              return <div key={stage.label} style={{ position: 'relative' }}>
-                {(index === 0 || index === 3 || index === 5) && <div style={{ color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace", fontSize: '7px', letterSpacing: '0.08em', textAlign: 'center', margin: index === 0 ? '0 0 4px' : '8px 0 4px', opacity: 0.55 }}>{index === 0 ? 'PRODUCT' : index === 3 ? 'DELIVERY' : 'PLANNING'}</div>}
+              return <div key={stage.label} style={{ position: 'relative', width: '40px' }}>
                 <button
                   className={`nav-icon ${isActive ? 'active' : ''}`}
                   onClick={() => { setActiveFlowStage(stage.flow); handleSelectTab(stage.tab, true) }}
                   title={`${stage.label.toLowerCase()} · ${stage.hint}`}
                   aria-current={isActive ? 'step' : undefined}
                   data-testid={stage.testid}
-                  style={{ width: '70px', minHeight: '43px', padding: '6px 3px', display: 'flex', flexDirection: 'column', gap: '3px', border: isActive ? '1px solid var(--cp-cyan)' : '1px solid transparent', background: isActive ? 'rgba(0,229,255,0.1)' : 'transparent', clipPath: 'polygon(12% 0, 88% 0, 100% 50%, 88% 100%, 12% 100%, 0 50%)' }}
+                  style={{ width: '40px', height: '40px', minHeight: '40px', padding: 0, display: 'grid', placeItems: 'center', border: 0, borderLeft: isActive ? '2px solid var(--cp-cyan)' : '2px solid transparent', background: isActive ? 'rgba(0,229,255,0.1)' : 'transparent', clipPath: 'none' }}
                 >
                   <span style={{ color: isActive ? 'var(--cp-cyan)' : 'var(--muted-foreground)' }}>{stage.icon}</span>
-                  <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: '8px', letterSpacing: '0.06em', color: isActive ? 'var(--cp-cyan)' : 'var(--muted-foreground)' }}>{stage.label}</span>
+                  <span style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{stage.label}</span>
                   {stage.label === 'PROJECT' && <span style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>projects</span>}
                   {stage.label === 'STORIES' && <span style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>blueprints</span>}
                 </button>
@@ -2026,7 +2080,7 @@ function App() {
             })}
           </div>
           
-          <div className="rail-bottom" style={{ width: '100%', padding: '8px 7px' }}>
+          <div className="rail-bottom" style={{ width: '100%', padding: '8px 0' }}>
             <button className="nav-icon" onClick={() => setIsLeftPaneOpen(!isLeftPaneOpen)} title={isLeftPaneOpen ? "Collapse Left Panel" : "Expand Left Panel"} style={{ marginBottom: '8px' }} data-testid="toggle-left-pane">
               {isLeftPaneOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
             </button>
@@ -2060,7 +2114,7 @@ function App() {
               </button>
             </>
           ) : (
-            <>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
               <div className="left-collapsible-panel-top">
                 <span>{LEFT_COLLAPSIBLE_LABELS[activeTab]}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -2107,7 +2161,47 @@ function App() {
             {/* projects tab content is owned by ProductManagerPanel */}
 
 
-            {activeTab === 'blueprint' && (
+            {activeTab === 'blueprint' && activeFlowStage === 'sprint' && (
+              <div style={{ flex: 1, overflowY: 'auto', padding: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ fontSize: '10px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace", textTransform: 'uppercase' }}>SQUADS</div>
+                {(config?.squads || []).map((squad) => {
+                  const isSelectedSquad = selectedSquadId === squad.id
+                  const squadPlans = sprintPlans.filter((plan) => plan.squad_id === squad.id)
+                  const activePlans = squadPlans.filter((plan) => plan.status === 'current')
+                  const futurePlans = squadPlans.filter((plan) => plan.status === 'planned').sort((a, b) => a.start_date.localeCompare(b.start_date))
+                  const previousPlans = squadPlans.filter((plan) => plan.status === 'complete').sort((a, b) => b.end_date.localeCompare(a.end_date))
+                  const renderSprint = (plan: SprintPlan) => (
+                    <button key={plan.id} type="button" onClick={() => setSelectedSprintId(plan.id)} style={{ width: '100%', textAlign: 'left', border: selectedSprintId === plan.id ? '1px solid var(--cp-cyan)' : '1px solid var(--cp-border)', background: selectedSprintId === plan.id ? 'rgba(0, 229, 255, 0.08)' : 'var(--cp-bg-2)', color: 'var(--foreground)', padding: '6px 8px', cursor: 'pointer', display: 'grid', gap: '2px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{plan.name}</span>
+                      <span style={{ color: 'var(--muted-foreground)', fontSize: '9px', fontFamily: "'Share Tech Mono', monospace" }}>{plan.start_date} → {plan.end_date}</span>
+                    </button>
+                  )
+                  return (
+                    <div key={squad.id} style={{ display: 'grid', gap: '5px' }}>
+                      <button type="button" onClick={() => { setSelectedSquadId(squad.id); setSelectedSprintId('') }} style={{ width: '100%', textAlign: 'left', border: isSelectedSquad ? '1px solid var(--cp-cyan)' : '1px solid var(--cp-border)', background: isSelectedSquad ? 'rgba(0, 229, 255, 0.12)' : 'var(--cp-bg-2)', color: isSelectedSquad ? 'var(--cp-cyan)' : 'var(--foreground)', padding: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px' }}>
+                        {squad.name.toUpperCase()}
+                      </button>
+                      {isSelectedSquad && (
+                        <div style={{ display: 'grid', gap: '8px', paddingLeft: '8px' }}>
+                          {[
+                            ['ACTIVE SPRINT', activePlans],
+                            ['FUTURE SPRINTS', futurePlans],
+                            ['PREVIOUS SPRINTS', previousPlans]
+                          ].map(([label, plans]) => (
+                            <div key={label as string} style={{ display: 'grid', gap: '4px' }}>
+                              <div style={{ color: 'var(--section-label)', fontSize: '9px', fontFamily: "'Share Tech Mono', monospace" }}>{label as string}</div>
+                              {(plans as SprintPlan[]).length ? (plans as SprintPlan[]).map(renderSprint) : <div style={{ color: 'var(--muted-foreground)', fontSize: '9px', fontStyle: 'italic', padding: '3px 0' }}>None</div>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {activeTab === 'blueprint' && activeFlowStage !== 'sprint' && (
               <>
                 <div style={{ padding: '8px', borderBottom: '1px solid var(--cp-border)' }}>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -2348,7 +2442,7 @@ function App() {
                 </div>
               </>
             )}
-            </>
+            </div>
           )}
         </aside>
         )}
@@ -2365,7 +2459,7 @@ function App() {
           }}
         >
           
-          {activeTab === 'projects' && (
+          {activeTab === 'projects' && (activeFlowStage === 'overview' || activeFlowStage === 'project') && (
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
               <div style={{ flex: 1, overflow: 'hidden', padding: '0' }}>
                 <ProductManagerPanel
@@ -2397,6 +2491,7 @@ function App() {
                     setProjectActionSignal({ type: 'delete', projectId: project.id, nonce: Date.now() })
                   }}
                   projectActionSignal={projectActionSignal}
+                  openInitialProject={activeFlowStage === 'project'}
                   selectedPrdId={selectedPrdId}
                   onSelectPrd={(prdId) => {
                     setSelectedPrdId(prdId)
@@ -2488,6 +2583,8 @@ function App() {
               onCompleteSprint={handleCompleteSprint}
               onAddAvailabilityEvent={handleAddAvailabilityEvent}
               onUpdateTicket={handleUpdateTicket}
+              selectedSprintId={selectedSprintId}
+              onSelectSprint={setSelectedSprintId}
             />
           )}
 

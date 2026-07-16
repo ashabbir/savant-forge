@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Activity, AlertTriangle, BarChart3, CalendarDays, CheckCircle2, Clock3, FileText, Plus, Users, Zap, Trash2 } from 'lucide-react'
 import type {
@@ -30,6 +30,8 @@ type SprintWorkbenchPanelProps = {
     notes?: string
   }) => void
   onUpdateTicket?: (ticketId: string, fields: Partial<JiraTicket>) => void
+  selectedSprintId?: string
+  onSelectSprint?: (sprintId: string) => void
 }
 
 export function SprintWorkbenchPanel({
@@ -45,7 +47,9 @@ export function SprintWorkbenchPanel({
   onSetCurrentSprint,
   onCompleteSprint,
   onAddAvailabilityEvent,
-  onUpdateTicket
+  onUpdateTicket,
+  selectedSprintId: selectedSprintIdProp,
+  onSelectSprint
 }: SprintWorkbenchPanelProps) {
   const [sprintName, setSprintName] = useState(currentSprint?.name || '')
   const [sprintStart, setSprintStart] = useState(currentSprint?.start_date || todayString())
@@ -57,11 +61,34 @@ export function SprintWorkbenchPanel({
   const [availabilityStart, setAvailabilityStart] = useState(todayString())
   const [availabilityEnd, setAvailabilityEnd] = useState(todayString())
   const [availabilityNotes, setAvailabilityNotes] = useState('')
+  const squadSprintPlans = useMemo(
+    () => sprintPlans.filter((plan) => !activeSquad || plan.squad_id === activeSquad.id),
+    [activeSquad, sprintPlans]
+  )
+  const [localSelectedSprintId, setLocalSelectedSprintId] = useState(currentSprint?.id || squadSprintPlans[0]?.id || '')
+  const selectedSprintId = selectedSprintIdProp || localSelectedSprintId
 
-  const current = currentSprint || sprintPlans.find((plan) => plan.status === 'current') || null
+  useEffect(() => {
+    const selectedStillExists = squadSprintPlans.some((plan) => plan.id === selectedSprintId)
+    if (!selectedStillExists) {
+      const fallback = currentSprint && squadSprintPlans.some((plan) => plan.id === currentSprint.id)
+        ? currentSprint.id
+        : squadSprintPlans[0]?.id || ''
+      setLocalSelectedSprintId(fallback)
+      if (onSelectSprint && fallback) onSelectSprint(fallback)
+    }
+  }, [currentSprint, onSelectSprint, selectedSprintId, squadSprintPlans])
+
+  const handleSelectSprint = (sprintId: string) => {
+    setLocalSelectedSprintId(sprintId)
+    onSelectSprint?.(sprintId)
+  }
+
+  const selectedSprint = squadSprintPlans.find((plan) => plan.id === selectedSprintId) || null
+  const current = selectedSprint || (currentSprint && squadSprintPlans.some((plan) => plan.id === currentSprint.id) ? currentSprint : null)
   const upcoming = useMemo(
-    () => sprintPlans.filter((plan) => plan.id !== current?.id).sort((a, b) => a.start_date.localeCompare(b.start_date)),
-    [current?.id, sprintPlans]
+    () => squadSprintPlans.filter((plan) => plan.id !== current?.id).sort((a, b) => a.start_date.localeCompare(b.start_date)),
+    [current?.id, squadSprintPlans]
   )
 
   const sprintTickets = useMemo(() => {
@@ -71,11 +98,11 @@ export function SprintWorkbenchPanel({
 
   const backlogTickets = useMemo(() => {
     if (!current) return []
-    return tickets.filter((ticket) => ticket.sprint_id !== current.id)
+    return tickets.filter((ticket) => ticket.sprint_id !== current.id && ticket.issue_type === 'story')
   }, [current, tickets])
 
   const sprintWorkload = current
-    ? tickets.filter((ticket) => ticket.status !== 'done').reduce((acc, ticket) => acc + ticket.story_points, 0)
+    ? sprintTickets.filter((ticket) => ticket.status !== 'done').reduce((acc, ticket) => acc + ticket.story_points, 0)
     : 0
 
   const deliveryRate = latest ? Math.round((latest.delivered_points / Math.max(latest.assigned_points || 1, 1)) * 100) : 0
@@ -276,7 +303,7 @@ export function SprintWorkbenchPanel({
                     width: '100%'
                   }}
                 >
-                  <option value="">+ ATTACH TICKET TO SPRINT...</option>
+                  <option value="">+ ADD STORY TO SPRINT...</option>
                   {backlogTickets.map((ticket) => (
                     <option key={ticket.ticket_id} value={ticket.ticket_id}>
                       {ticket.ticket_key} - {ticket.title.substring(0, 30)}...
@@ -450,8 +477,8 @@ export function SprintWorkbenchPanel({
                               cursor: 'pointer'
                             }}
                           >
-                            <option value="">+ ATTACH TICKET...</option>
-                            {tickets.filter(t => t.sprint_id !== plan.id).map(ticket => (
+                            <option value="">+ ADD STORY TO SPRINT...</option>
+                            {tickets.filter(t => t.sprint_id !== plan.id && t.issue_type === 'story').map(ticket => (
                               <option key={ticket.ticket_id} value={ticket.ticket_id}>
                                 {ticket.ticket_key} - {ticket.title.substring(0, 20)}...
                               </option>

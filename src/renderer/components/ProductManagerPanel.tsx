@@ -90,7 +90,8 @@ export interface PMPanelProps {
   onSelectTicket?: (ticketId: string) => void
   selectedPrdId?: string | null
   onSelectPrd?: (prdId: string | null) => void
-  onGeneratePlan?: (prd: PRDDocument, tickets: GeneratedPlanTicket[], sprintId?: string) => void
+  onGeneratePlan?: (prd: PRDDocument, tickets: GeneratedPlanTicket[], sprintId?: string) => void | Promise<void>
+  openInitialProject?: boolean
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1232,22 +1233,41 @@ function EditDrawer({
 export function ProductManagerPanel({
   projects, features, prds, tickets, squads, sprintPlans = [], activeSquadId,
   onSaveProject, onSaveFeature, onDeleteFeature, onSavePRD, onDeletePRD,
-  onConvertFeatureToPRD, onOpenAthena, onNewProject, onSelectionChange, onRequestEditProject, onRequestDeleteProject, onProjectDrawerChange, projectActionSignal, selectedPrdId, onSelectPrd, onGeneratePlan
+  onConvertFeatureToPRD, onOpenAthena, onNewProject, onSelectionChange, onRequestEditProject, onRequestDeleteProject, onProjectDrawerChange, projectActionSignal, selectedPrdId, onSelectPrd, onGeneratePlan, openInitialProject
 }: PMPanelProps) {
   const [selection, setSelection] = useState<PMSelection>({ kind: 'none' })
   const [drawerMode, setDrawerMode] = useState<PMDrawerMode>('closed')
   const [projectTab, setProjectTab] = useState<'project' | 'features' | 'prds'>('project')
   const [reviewPlan, setReviewPlan] = useState<{ prd: PRDDocument; tickets: GeneratedPlanTicket[] } | null>(null)
   const [reviewSprintId, setReviewSprintId] = useState('')
+  const [finalizationState, setFinalizationState] = useState<'idle' | 'finalizing' | 'success' | 'error'>('idle')
+  const [finalizationError, setFinalizationError] = useState('')
+  const [generatedEpicIds, setGeneratedEpicIds] = useState<Set<string>>(new Set())
 
-  // Land on the first project so the PM surface opens with content, not an empty state.
+  // Keep the two top-level pages distinct:
+  // - Overview is an unscoped landing page.
+  // - Project opens the first project directly into its project overview.
+  // Reset the local selection when navigating back to Overview so a project
+  // drawer cannot remain mounted over the landing page.
   useEffect(() => {
-    if (selection.kind !== 'none') return
-    if (!projects.length) return
-    const firstProject = projects[0]
-    setSelection({ kind: 'project', id: firstProject.id })
-    onSelectionChange?.({ kind: 'project', id: firstProject.id }, firstProject)
-  }, [projects, selection.kind, onSelectionChange])
+    if (openInitialProject) {
+      if (selection.kind !== 'none' || !projects.length) return
+      const firstProject = projects[0]
+      const firstSelection = { kind: 'project' as const, id: firstProject.id }
+      setSelection(firstSelection)
+      setDrawerMode('view-project')
+      onProjectDrawerChange?.(true)
+      onSelectionChange?.(firstSelection, firstProject)
+      return
+    }
+
+    if (selection.kind !== 'none' || drawerMode !== 'closed') {
+      setSelection({ kind: 'none' })
+      setDrawerMode('closed')
+      onProjectDrawerChange?.(false)
+      onSelectionChange?.({ kind: 'none' })
+    }
+  }, [projects, selection.kind, drawerMode, onSelectionChange, onProjectDrawerChange, openInitialProject])
 
   // Sync external PRD selection
   useEffect(() => {
@@ -1358,6 +1378,40 @@ export function ProductManagerPanel({
   function handleNewProject() {
     setDrawerMode('new-project')
     onNewProject?.()
+  }
+
+  function handleGenerateEpic(prd: PRDDocument) {
+    const epic = generateOneLineEpic(prd.title, prd.content)
+    onSavePRD({ ...prd, epic_summary: epic, lastUpdated: new Date().toISOString() })
+    setGeneratedEpicIds((current) => {
+      const next = new Set(current)
+      next.add(prd.id)
+      return next
+    })
+  }
+
+  async function handleFinalizeAcceptedStories() {
+    if (!reviewPlan || !onGeneratePlan) {
+      setFinalizationState('error')
+      setFinalizationError('Unable to finalize stories because the planning handler is unavailable.')
+      return
+    }
+
+    const acceptedTickets = reviewPlan.tickets.filter((ticket) => ticket.review_status === 'accepted')
+    if (!acceptedTickets.length) return
+
+    setFinalizationState('finalizing')
+    setFinalizationError('')
+    try {
+      await onGeneratePlan(reviewPlan.prd, acceptedTickets, reviewSprintId || undefined)
+      setReviewPlan(null)
+      setFinalizationState('success')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The accepted stories could not be finalized.'
+      setFinalizationState('error')
+      setFinalizationError(message)
+      console.error('Failed to finalize accepted stories', error)
+    }
   }
 
   function handleRequestEditCurrentProject() {
@@ -1473,9 +1527,9 @@ export function ProductManagerPanel({
         <section className="hero-panel" style={{ margin: '8px 10px 0' }}>
           <div className="panel-head">
             <div>
-              <div className="eyebrow">Product and Delivery Planning</div>
+              <div className="eyebrow">Forge Overview</div>
               <div className="workspace-header-title-row">
-                <h1 className="page-title">PRODUCT + DELIVERY → SPRINT</h1>
+                <h1 className="page-title">PRODUCT + DELIVERY OVERVIEW</h1>
                 <div className="workspace-header-meta"><span className="workspace-header-pill workspace-header-pill-active">stories + squad</span></div>
               </div>
               <div style={{ color: 'var(--muted-foreground)', fontSize: '11px', marginTop: '5px' }}>Define the work, choose who delivers it, then plan the sprint.</div>
@@ -1522,7 +1576,7 @@ export function ProductManagerPanel({
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--cp-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--cp-bg-2)' }}>
               <div>
                 <div style={{ fontSize: '10px', fontFamily: "'Share Tech Mono', monospace", letterSpacing: '0.12em', color: 'var(--section-label)', textTransform: 'uppercase' }}>
-                  Selected Card
+                  PROJECT OVERVIEW
                 </div>
                 <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--cp-cyan)' }}>
                   {selectedProject.name}
@@ -1618,10 +1672,34 @@ export function ProductManagerPanel({
                   {projectPrds.length === 0 && <div style={{ padding: '18px', color: 'var(--muted-foreground)', fontSize: '11px' }}>No PRDs yet. Convert a feature to create one.</div>}
                   {projectPrds.map((prd) => {
                     const epic = prd.epic_summary || generateOneLineEpic(prd.title, prd.content)
+                    const prdStories = tickets.filter((ticket) => ticket.prd_id === prd.id && ticket.issue_type === 'story')
                     return <div key={prd.id} style={{ padding: '10px', border: selection.kind === 'prd' && selection.id === prd.id ? '1px solid var(--cp-cyan)' : '1px solid var(--cp-border)', background: 'var(--cp-bg-2)' }}>
                       <button type="button" onClick={() => handleSelect({ kind: 'prd', id: prd.id, projectId: prd.project_id })} style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', border: 0, background: 'transparent', color: 'var(--foreground)', textAlign: 'left', cursor: 'pointer', padding: 0 }}><FileText size={12} style={{ color: 'var(--cp-cyan)' }} /><span style={{ flex: 1, fontSize: '11px' }}>{prd.title}</span><StatusChip status={prd.status} /></button>
-                      <div style={{ margin: '8px 0', color: 'var(--muted-foreground)', fontSize: '10px' }}>EPIC · {epic}</div>
-                      <div style={{ display: 'flex', gap: '6px' }}><button type="button" onClick={() => onSavePRD({ ...prd, epic_summary: epic, lastUpdated: new Date().toISOString() })} style={{ padding: '5px 8px', border: '1px solid var(--cp-cyan)', background: 'rgba(0,229,255,0.08)', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", fontSize: '9px', cursor: 'pointer' }}>GENERATE EPIC</button><button type="button" onClick={() => { setReviewPlan({ prd: { ...prd, epic_summary: epic }, tickets: decomposeEpicIntoTickets(epic) }); setReviewSprintId('') }} style={{ padding: '5px 8px', border: '1px solid #f59e0b', background: 'rgba(245,158,11,0.08)', color: '#f59e0b', fontFamily: "'Share Tech Mono', monospace", fontSize: '9px', cursor: 'pointer' }}>GENERATE STORIES</button></div>
+                      <div style={{ margin: '8px 0', color: 'var(--muted-foreground)', fontSize: '10px' }}>
+                        EPIC · {epic}
+                        {generatedEpicIds.has(prd.id) && <span role="status" aria-live="polite" style={{ marginLeft: '8px', color: 'var(--cp-green)', fontFamily: "'Share Tech Mono', monospace", fontSize: '9px' }}>SAVED</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button type="button" onClick={() => handleGenerateEpic(prd)} style={{ padding: '5px 8px', border: '1px solid var(--cp-cyan)', background: 'rgba(0,229,255,0.08)', color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", fontSize: '9px', cursor: 'pointer' }}>{generatedEpicIds.has(prd.id) ? 'EPIC SAVED' : 'GENERATE EPIC'}</button>
+                        <button type="button" onClick={() => { setReviewPlan({ prd: { ...prd, epic_summary: epic }, tickets: decomposeEpicIntoTickets(epic) }); setReviewSprintId('') }} style={{ padding: '5px 8px', border: '1px solid #f59e0b', background: 'rgba(245,158,11,0.08)', color: '#f59e0b', fontFamily: "'Share Tech Mono', monospace", fontSize: '9px', cursor: 'pointer' }}>GENERATE STORIES</button>
+                      </div>
+                      {prdStories.length > 0 && (
+                        <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--cp-border)' }}>
+                          <div style={{ color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", fontSize: '9px', letterSpacing: '0.08em', marginBottom: '5px' }}>
+                            ACCEPTED STORIES ({prdStories.length})
+                          </div>
+                          <div style={{ display: 'grid', gap: '3px' }}>
+                            {prdStories.map((story) => (
+                              <div key={story.ticket_id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 6px', background: 'var(--cp-bg-3)', border: '1px solid var(--cp-border)', fontSize: '10px' }}>
+                                <BookOpen size={10} style={{ color: 'var(--cp-cyan)', flexShrink: 0 }} />
+                                <span style={{ color: 'var(--cp-cyan)', fontFamily: "'Share Tech Mono', monospace", fontSize: '9px' }}>{story.ticket_key}</span>
+                                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--foreground)' }} title={story.title}>{story.title}</span>
+                                <span style={{ color: 'var(--cp-green)', fontFamily: "'Share Tech Mono', monospace", fontSize: '8px' }}>ACCEPTED</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   })}
                 </div>
@@ -1631,10 +1709,12 @@ export function ProductManagerPanel({
                   {reviewPlan.tickets.map((ticket, index) => <div key={ticket.id} style={{ padding: '8px', marginBottom: '7px', border: '1px solid var(--cp-border)', background: 'var(--cp-bg-2)', opacity: ticket.review_status === 'rejected' ? 0.55 : 1 }}>
                     <input aria-label={`Story ${index + 1} title`} value={ticket.title} onChange={(event) => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item) })} style={{ width: '100%', boxSizing: 'border-box', marginBottom: '5px', background: 'transparent', color: 'var(--foreground)', border: '1px solid var(--cp-border)', padding: '5px', fontSize: '11px' }} />
                     <textarea aria-label={`Story ${index + 1} description`} value={ticket.description} onChange={(event) => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item) })} rows={2} style={{ width: '100%', boxSizing: 'border-box', background: 'transparent', color: 'var(--foreground)', border: '1px solid var(--cp-border)', padding: '5px', fontSize: '10px' }} />
-                    <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}><select aria-label={`Story ${index + 1} priority`} value={ticket.priority} onChange={(event) => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, priority: event.target.value as any } : item) })} style={{ flex: 1, background: 'var(--cp-bg-2)', color: 'var(--foreground)', border: '1px solid var(--cp-border)', fontSize: '10px' }}><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select><button type="button" onClick={() => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, review_status: 'accepted' } : item) })} style={{ color: 'var(--cp-green)', background: 'transparent', border: '1px solid var(--cp-green)', fontSize: '9px' }}>ACCEPT</button><button type="button" onClick={() => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, review_status: 'rejected' } : item) })} style={{ color: '#ff5f56', background: 'transparent', border: '1px solid #ff5f56', fontSize: '9px' }}>REJECT</button><button type="button" onClick={() => { const replacement = decomposeEpicIntoTickets(reviewPlan.prd.epic_summary || 'the feature outcome')[index]; if (replacement) setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? replacement : item) }) }} style={{ color: '#f59e0b', background: 'transparent', border: '1px solid #f59e0b', fontSize: '9px' }}>REGENERATE</button></div>
+                    <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}><select aria-label={`Story ${index + 1} squad`} value={ticket.suggested_squad || ''} onChange={(event) => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, suggested_squad: event.target.value, suggested_owner: '' } : item) })} style={{ flex: 1, background: 'var(--cp-bg-2)', color: 'var(--foreground)', border: '1px solid var(--cp-border)', fontSize: '10px' }}><option value="">Squad</option>{squads.map((squad) => <option key={squad.id} value={squad.name}>{squad.name}</option>)}</select><select aria-label={`Story ${index + 1} owner`} value={ticket.suggested_owner || ''} onChange={(event) => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, suggested_owner: event.target.value } : item) })} style={{ flex: 1, background: 'var(--cp-bg-2)', color: 'var(--foreground)', border: '1px solid var(--cp-border)', fontSize: '10px' }}><option value="">Owner</option>{(squads.find((squad) => squad.name === ticket.suggested_squad)?.developers || []).map((developer) => <option key={developer.id || developer.name} value={developer.name}>{developer.name}</option>)}</select><button type="button" aria-pressed={ticket.review_status === 'accepted'} onClick={() => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, review_status: 'accepted' } : item) })} style={{ color: 'var(--cp-green)', background: ticket.review_status === 'accepted' ? 'rgba(0,255,136,0.2)' : 'transparent', border: '1px solid var(--cp-green)', fontSize: '9px', fontWeight: ticket.review_status === 'accepted' ? 700 : 400 }}>ACCEPT</button><button type="button" aria-pressed={ticket.review_status === 'rejected'} onClick={() => setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? { ...item, review_status: 'rejected' } : item) })} style={{ color: '#ff5f56', background: ticket.review_status === 'rejected' ? 'rgba(255,95,86,0.2)' : 'transparent', border: '1px solid #ff5f56', fontSize: '9px', fontWeight: ticket.review_status === 'rejected' ? 700 : 400 }}>REJECT</button><button type="button" onClick={() => { const replacement = decomposeEpicIntoTickets(reviewPlan.prd.epic_summary || 'the feature outcome')[index]; if (replacement) setReviewPlan({ ...reviewPlan, tickets: reviewPlan.tickets.map((item, itemIndex) => itemIndex === index ? replacement : item) }) }} style={{ color: '#f59e0b', background: 'transparent', border: '1px solid #f59e0b', fontSize: '9px' }}>REGENERATE</button></div>
                   </div>)}
-                  <button type="button" disabled={!reviewPlan.tickets.some((ticket) => ticket.review_status === 'accepted')} onClick={() => { onGeneratePlan?.(reviewPlan.prd, reviewPlan.tickets.filter((ticket) => ticket.review_status === 'accepted'), reviewSprintId || undefined); setReviewPlan(null) }} style={{ marginTop: '4px', padding: '7px 10px', border: '1px solid var(--cp-cyan)', color: 'var(--cp-cyan)', background: 'rgba(0,229,255,0.08)', fontSize: '10px' }}>FINALIZE ACCEPTED STORIES</button>
+                  <button type="button" disabled={!reviewPlan.tickets.some((ticket) => ticket.review_status === 'accepted') || finalizationState === 'finalizing'} onClick={() => { void handleFinalizeAcceptedStories() }} style={{ marginTop: '4px', padding: '7px 10px', border: '1px solid var(--cp-cyan)', color: 'var(--cp-cyan)', background: 'rgba(0,229,255,0.08)', fontSize: '10px', cursor: finalizationState === 'finalizing' ? 'wait' : 'pointer' }}>{finalizationState === 'finalizing' ? 'FINALIZING STORIES…' : 'FINALIZE ACCEPTED STORIES'}</button>
                 </div>}
+                {finalizationState === 'success' && <div role="status" aria-live="polite" style={{ marginTop: '6px', color: 'var(--cp-green)', fontSize: '10px' }}>Accepted stories finalized and added to planning.</div>}
+                {finalizationState === 'error' && <div role="alert" style={{ marginTop: '6px', color: '#ff5f56', fontSize: '10px' }}>Could not finalize stories: {finalizationError}</div>}
               </div>
             )}
           </div>

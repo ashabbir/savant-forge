@@ -60,6 +60,7 @@ describe('SprintWorkbenchPanel', () => {
       assignee: 'dev-1',
       reporter: 'user',
       story_points: 5,
+      issue_type: 'story',
       sprint_id: 'sprint-1'
     },
     {
@@ -72,9 +73,70 @@ describe('SprintWorkbenchPanel', () => {
       assignee: '',
       reporter: 'user',
       story_points: 3,
+      issue_type: 'story',
+      sprint_id: undefined
+    },
+    {
+      ticket_id: 't-3',
+      workspace_id: 'w-1',
+      ticket_key: 'J-3',
+      title: 'Task Three',
+      status: 'todo',
+      priority: 'low',
+      assignee: '',
+      reporter: 'user',
+      story_points: 2,
+      issue_type: 'task',
       sprint_id: undefined
     }
   ]
+
+  it('lets the user select a sprint and shows that sprint details', () => {
+    const onUpdateTicket = vi.fn()
+
+    const { rerender } = render(
+      <SprintWorkbenchPanel
+        mode="current"
+        activeSquad={mockSquad}
+        history={[]}
+        latest={mockLatestSnapshot}
+        sprintPlans={mockSprintPlans}
+        currentSprint={mockSprintPlans[0]}
+        availabilityEvents={[]}
+        tickets={mockTickets}
+        onCreateSprint={() => {}}
+        onSetCurrentSprint={() => {}}
+        onCompleteSprint={() => {}}
+        onAddAvailabilityEvent={() => {}}
+        onUpdateTicket={onUpdateTicket}
+        selectedSprintId="sprint-1"
+      />
+    )
+
+    expect(screen.getByText(/Sprint workload: 5 SP open/)).toBeTruthy()
+
+    rerender(
+      <SprintWorkbenchPanel
+        mode="current"
+        activeSquad={mockSquad}
+        history={[]}
+        latest={mockLatestSnapshot}
+        sprintPlans={mockSprintPlans}
+        currentSprint={mockSprintPlans[0]}
+        availabilityEvents={[]}
+        tickets={mockTickets}
+        onCreateSprint={() => {}}
+        onSetCurrentSprint={() => {}}
+        onCompleteSprint={() => {}}
+        onAddAvailabilityEvent={() => {}}
+        onUpdateTicket={onUpdateTicket}
+        selectedSprintId="sprint-2"
+      />
+    )
+
+    expect(screen.getByText(/Sprint workload: 0 SP open/)).toBeTruthy()
+    expect(screen.queryByText('Task One')).toBeNull()
+  })
 
   it('renders current mode with sprint details, attached tickets, and dropdown to attach backlog tickets', () => {
     const onUpdateTicket = vi.fn()
@@ -120,10 +182,11 @@ describe('SprintWorkbenchPanel', () => {
     expect(onUpdateTicket).toHaveBeenCalledWith('t-1', { assignee: 'dev-1' })
 
     // Verify attach ticket dropdown
-    const attachSelect = selects.find(sel => Array.from(sel.options).some(opt => opt.text.includes('+ ATTACH TICKET')))!
+    const attachSelect = selects.find(sel => Array.from(sel.options).some(opt => opt.text.includes('+ ADD STORY TO SPRINT')))!
     expect(attachSelect).toBeDefined()
     // There should be the option to attach J-2 (Task Two)
     expect(screen.getByText('J-2 - Task Two...')).toBeTruthy()
+    expect(screen.queryByText('J-3 - Task Three...')).toBeNull()
 
     // Select the backlog ticket to attach
     fireEvent.change(attachSelect, { target: { value: 't-2' } })
@@ -159,7 +222,7 @@ describe('SprintWorkbenchPanel', () => {
     )
 
     // Verify upcoming sprint renders
-    expect(screen.getByText('Sprint 2')).toBeTruthy()
+    expect(screen.getAllByText('Sprint 2').length).toBeGreaterThan(0)
     expect(screen.getByText('Set current')).toBeTruthy()
 
     // Clicking "Set current" should call onSetCurrentSprint
@@ -171,7 +234,7 @@ describe('SprintWorkbenchPanel', () => {
     const selects = screen.getAllByRole('combobox') as HTMLSelectElement[]
     // The first dropdown might be other selects, or let's find the one containing ticket options
     const attachSelect = selects.find(sel => {
-      return Array.from(sel.options).some(opt => opt.text.includes('+ ATTACH TICKET'))
+      return Array.from(sel.options).some(opt => opt.text.includes('+ ADD STORY TO SPRINT'))
     })
     expect(attachSelect).toBeDefined()
 

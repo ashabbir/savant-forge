@@ -29,6 +29,13 @@ export type PlanningSummary = {
   finalizedAt: string
 }
 
+function createPlanningId(prefix: string) {
+  const uuid = typeof globalThis.crypto?.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID()
+    : Math.random().toString(36).slice(2, 12)
+  return `${prefix}-${uuid}`
+}
+
 const DEFAULT_PRD_TEMPLATE = (idea: string, context: PlanningContext[]) => `# ${idea}\n\n## Problem\n${idea} needs a clear, shared product definition.\n\n## Proposed Outcome\nDescribe the measurable user or business outcome.\n\n## Users and Use Cases\n- Primary user: \n- Job to be done: \n\n## Scope\n### In scope\n- \n\n### Out of scope\n- \n\n## Requirements\n- Functional: \n- Non-functional: \n\n## Acceptance Criteria\n- [ ] The intended outcome is observable and testable.\n\n## Risks and Dependencies\n- \n\n## Savant Context\n${context.length ? context.map((item) => `- ${item.source}: ${item.summary}`).join('\\n') : '- No centralized context was available.'}\n`
 
 export function createStructuredPrd(featureIdea: string, context: PlanningContext[] = []) {
@@ -53,7 +60,7 @@ export function decomposeEpicIntoTickets(epic: string, context: PlanningContext[
   const contextHint = context.length ? ` Informed by ${context.map((item) => `${item.source}: ${item.summary}`).join('; ')}.` : ''
   return [
     {
-      id: `plan-ticket-${crypto.randomUUID()}`,
+      id: createPlanningId('plan-ticket'),
       ticket_key: 'FORGE-PLAN-1',
       title: `Define domain contract for ${subject}`,
       description: `Document the data and service contract required to support ${subject}.${contextHint}`,
@@ -62,7 +69,7 @@ export function decomposeEpicIntoTickets(epic: string, context: PlanningContext[
       review_status: 'pending'
     },
     {
-      id: `plan-ticket-${crypto.randomUUID()}`,
+      id: createPlanningId('plan-ticket'),
       ticket_key: 'FORGE-PLAN-2',
       title: `Implement user workflow for ${subject}`,
       description: `Build the user-facing workflow that makes ${subject} actionable.${contextHint}`,
@@ -71,7 +78,7 @@ export function decomposeEpicIntoTickets(epic: string, context: PlanningContext[
       review_status: 'pending'
     },
     {
-      id: `plan-ticket-${crypto.randomUUID()}`,
+      id: createPlanningId('plan-ticket'),
       ticket_key: 'FORGE-PLAN-3',
       title: `Verify and observe ${subject}`,
       description: `Add automated coverage and outcome instrumentation for ${subject}.${contextHint}`,

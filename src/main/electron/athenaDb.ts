@@ -1,8 +1,15 @@
 import Database from 'better-sqlite3'
 import path from 'node:path'
+import fs from 'node:fs'
 import { app } from 'electron'
 
 export type AthenaContextKind = 'squad' | 'developer' | 'prd' | 'ticket' | 'blueprint' | 'global' | 'project' | 'feature'
+
+export type AthenaEntityRef = {
+  type: AthenaContextKind
+  id: string
+  name: string
+}
 
 export type AthenaThreadMessage = {
   id: string
@@ -13,6 +20,7 @@ export type AthenaThreadMessage = {
 
 export type AthenaThread = {
   id: string
+  entity: AthenaEntityRef
   contextKey: string
   contextKind: AthenaContextKind
   title: string
@@ -38,7 +46,9 @@ export type AthenaRunRecord = {
   contextKind: AthenaContextKind
 }
 
-const db = new Database(path.join(app.getPath('userData'), 'athena.db'))
+const sharedSavantDir = path.join(app.getPath('home'), '.savant')
+fs.mkdirSync(sharedSavantDir, { recursive: true })
+const db = new Database(path.join(sharedSavantDir, 'olympus.db'))
 
 db.pragma('journal_mode = WAL')
 db.exec(`
@@ -50,6 +60,15 @@ db.exec(`
     messages TEXT NOT NULL,
     activeRunId TEXT NOT NULL DEFAULT '',
     lastUpdatedAt TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS chat_history (
+    target_id TEXT PRIMARY KEY,
+    messages TEXT NOT NULL,
+    title TEXT,
+    context TEXT,
+    kind TEXT DEFAULT 'general',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS athena_runs (
@@ -70,17 +89,51 @@ db.exec(`
   );
 `)
 
-const threadUpsert = db.prepare(`
-  INSERT INTO athena_threads (id, contextKey, contextKind, title, messages, activeRunId, lastUpdatedAt)
-  VALUES (@id, @contextKey, @contextKind, @title, @messages, @activeRunId, @lastUpdatedAt)
-  ON CONFLICT(id) DO UPDATE SET
-    contextKey=excluded.contextKey,
-    contextKind=excluded.contextKind,
-    title=excluded.title,
-    messages=excluded.messages,
-    activeRunId=excluded.activeRunId,
-    lastUpdatedAt=excluded.lastUpdatedAt
+for (const statement of [
+  "ALTER TABLE athena_threads ADD COLUMN entityType TEXT NOT NULL DEFAULT 'global'",
+  "ALTER TABLE athena_threads ADD COLUMN entityId TEXT NOT NULL DEFAULT 'global'",
+  "ALTER TABLE athena_threads ADD COLUMN entityName TEXT NOT NULL DEFAULT 'Athena'"
+]) {
+  try { db.exec(statement) } catch { /* existing installation */ }
+}
+
+db.exec(`
+  UPDATE athena_threads
+  SET entityType = CASE WHEN instr(contextKey, ':') > 0 THEN substr(contextKey, 1, instr(contextKey, ':') - 1) ELSE contextKind END,
+      entityId = CASE WHEN instr(contextKey, ':') > 0 THEN substr(contextKey, instr(contextKey, ':') + 1) ELSE contextKey END,
+      entityName = CASE WHEN entityName = 'Athena' THEN title ELSE entityName END
+  WHERE entityId = 'global' AND contextKey <> 'global'
 `)
+
+const threadUpsert = db.prepare(`
+  INSERT INTO chat_history (target_id, messages, title, context, kind, updated_at)
+  VALUES (@target_id, @messages, @title, @context, @kind, CURRENT_TIMESTAMP)
+  ON CONFLICT(target_id) DO UPDATE SET
+    messages=excluded.messages,
+    title=COALESCE(excluded.title, chat_history.title),
+    context=COALESCE(excluded.context, chat_history.context),
+    kind=COALESCE(excluded.kind, chat_history.kind),
+    updated_at=CURRENT_TIMESTAMP
+`)
+
+function migrateLegacyAthenaThreads() {
+  const legacyPath = path.join(app.getPath('userData'), 'athena.db')
+  if (path.resolve(legacyPath) === path.resolve(path.join(sharedSavantDir, 'olympus.db')) || !fs.existsSync(legacyPath)) return
+  let legacy: Database.Database | null = null
+  try {
+    legacy = new Database(legacyPath, { readonly: true })
+    const rows = legacy.prepare('SELECT * FROM athena_threads').all() as Array<Record<string, any>>
+    for (const row of rows) {
+      const thread = normalizeThread(row)
+      const exists = db.prepare('SELECT 1 FROM chat_history WHERE target_id = ?').get(thread.contextKey)
+      if (!exists) threadUpsert.run(serializeThread(thread))
+    }
+  } catch {
+    // Legacy persistence is best-effort; shared Olympus history remains authoritative.
+  } finally {
+    legacy?.close()
+  }
+}
 
 const runUpsert = db.prepare(`
   INSERT INTO athena_runs (id, provider, model, status, startedAt, endedAt, prompt, message, events, source, app, workspace_id, contextKey, contextKind)
@@ -101,32 +154,56 @@ const runUpsert = db.prepare(`
     contextKind=excluded.contextKind
 `)
 
+function serializeThread(thread: AthenaThread) {
+  const normalized = normalizeThread(thread)
+  return {
+    target_id: normalized.contextKey,
+    title: normalized.title,
+    kind: normalized.entity.type,
+    context: JSON.stringify({
+      threadId: normalized.id,
+      entity: normalized.entity,
+      contextKey: normalized.contextKey,
+      contextKind: normalized.contextKind,
+      activeRunId: normalized.activeRunId || ''
+    }),
+    messages: JSON.stringify(normalized.messages)
+  }
+}
+
 export function loadAthenaThreads(): AthenaThread[] {
-  const rows = db.prepare('SELECT * FROM athena_threads ORDER BY lastUpdatedAt ASC').all() as Array<Record<string, string>>
-  return rows.map(normalizeThread)
+  const rows = db.prepare('SELECT target_id, messages, title, context, kind, updated_at FROM chat_history ORDER BY updated_at ASC').all() as Array<Record<string, any>>
+  return rows.map((row) => {
+    const context = parseJson<Record<string, any>>(row.context, {})
+    return normalizeThread({
+      ...context,
+      id: context.threadId || `athena-thread-${row.target_id}`,
+      contextKey: row.target_id,
+      contextKind: context.contextKind || row.kind || 'global',
+      entity: context.entity || { type: row.kind || 'global', id: String(row.target_id).split(':').slice(1).join(':'), name: row.title || 'Athena' },
+      title: row.title || context.entity?.name || 'Athena',
+      messages: parseJson(row.messages, []),
+      lastUpdatedAt: row.updated_at || new Date().toISOString()
+    })
+  })
 }
 
 export function saveAthenaThreads(threads: AthenaThread[]) {
-  const truncate = db.prepare('DELETE FROM athena_threads')
   const insert = db.transaction((items: AthenaThread[]) => {
-    truncate.run()
-    for (const thread of items.slice(-40)) {
-      threadUpsert.run({
-        ...normalizeThread(thread),
-        messages: JSON.stringify(normalizeThread(thread).messages)
-      })
+    for (const thread of items) {
+      threadUpsert.run(serializeThread(thread))
     }
   })
   insert(threads)
 }
 
 export function upsertAthenaThread(thread: AthenaThread) {
-  const normalized = normalizeThread(thread)
-  threadUpsert.run({ ...normalized, messages: JSON.stringify(normalized.messages) })
+  threadUpsert.run(serializeThread(thread))
 }
 
 export function deleteAthenaThread(threadId: string) {
-  db.prepare('DELETE FROM athena_threads WHERE id = ?').run(threadId)
+  const thread = loadAthenaThreads().find((item) => item.id === threadId)
+  if (thread) db.prepare('DELETE FROM chat_history WHERE target_id = ?').run(thread.contextKey)
 }
 
 export function setAthenaThreadActiveRun(threadId: string, runId?: string) {
@@ -144,7 +221,7 @@ export function saveAthenaRuns(runs: AthenaRunRecord[]) {
   const truncate = db.prepare('DELETE FROM athena_runs')
   const insert = db.transaction((items: AthenaRunRecord[]) => {
     truncate.run()
-    for (const run of items.slice(-80)) {
+    for (const run of items) {
       runUpsert.run({ ...normalizeRun(run), events: JSON.stringify(normalizeRun(run).events) })
     }
   })
@@ -166,10 +243,19 @@ function normalizeThread(thread: Partial<AthenaThread> | Record<string, any>): A
   const messages = typeof thread.messages === 'string'
     ? parseJson(thread.messages, [])
     : (Array.isArray(thread.messages) ? thread.messages : [])
+  const raw = thread as Record<string, any>
+  const contextKind = (thread.contextKind as AthenaContextKind) || thread.entity?.type || raw.entityType || 'global'
+  const contextKey = thread.contextKey || (thread.entity ? `${thread.entity.type}:${thread.entity.id}` : 'global')
+  const entity = thread.entity || {
+    type: (raw.entityType as AthenaContextKind) || contextKind,
+    id: raw.entityId || (contextKey.includes(':') ? contextKey.slice(contextKey.indexOf(':') + 1) : contextKey),
+    name: raw.entityName || thread.title || 'Athena'
+  }
   return {
     id: thread.id || `athena-thread-${Math.random().toString(36).slice(2, 9)}`,
-    contextKey: thread.contextKey || 'global',
-    contextKind: (thread.contextKind as AthenaContextKind) || 'global',
+    entity: { type: entity.type, id: entity.id, name: entity.name || thread.title || 'Athena' },
+    contextKey,
+    contextKind,
     title: thread.title || 'Athena',
     messages: Array.isArray(messages) ? messages.map(normalizeMessage) : [],
     activeRunId: thread.activeRunId || '',
@@ -216,3 +302,5 @@ function parseJson<T>(value: unknown, fallback: T): T {
     return fallback
   }
 }
+
+migrateLegacyAthenaThreads()

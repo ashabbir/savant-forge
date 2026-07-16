@@ -975,6 +975,7 @@ export async function fetchJiraTickets(serverUrl: string, workspaceId: string): 
             story_points: parseStoryPoints(t),
             // Prefer local prd_id when: server doesn't have it, OR there's a pending sync (local is more current)
             prd_id: (hasPendingSync && local !== undefined) ? local.prd_id : (t.prd_id || local?.prd_id || undefined),
+            issue_type: (hasPendingSync && local !== undefined) ? local.issue_type : (t.issue_type || local?.issue_type || undefined),
             // Prefer local sprint_id when: server doesn't have it, OR there's a pending sync
             sprint_id: (hasPendingSync && local !== undefined) ? local.sprint_id : (t.sprint_id || local?.sprint_id || undefined)
           }
@@ -1001,13 +1002,13 @@ export async function fetchJiraTickets(serverUrl: string, workspaceId: string): 
 
   // Generate seed tickets if completely empty
   const seeds: JiraTicket[] = [
-    { ticket_id: 't-1', workspace_id: workspaceId, ticket_key: 'JIRA-101', title: '[SP-8] Refactor Auth Middleware', status: 'todo', priority: 'high', assignee: '', reporter: 'admin', story_points: 8 },
-    { ticket_id: 't-2', workspace_id: workspaceId, ticket_key: 'JIRA-102', title: '[SP-5] Fix Database Deadlock', status: 'in_progress', priority: 'high', assignee: 'dev-1', reporter: 'admin', story_points: 5 },
-    { ticket_id: 't-3', workspace_id: workspaceId, ticket_key: 'JIRA-103', title: '[SP-13] Build Cockpit UI Dashboard', status: 'todo', priority: 'medium', assignee: '', reporter: 'admin', story_points: 13 },
-    { ticket_id: 't-4', workspace_id: workspaceId, ticket_key: 'JIRA-104', title: '[SP-3] Add Logging Middleware', status: 'done', priority: 'low', assignee: 'dev-1', reporter: 'admin', story_points: 3 },
-    { ticket_id: 't-5', workspace_id: workspaceId, ticket_key: 'JIRA-105', title: '[SP-5] Setup Docker Compose Multi-Node', status: 'todo', priority: 'medium', assignee: 'dev-3', reporter: 'admin', story_points: 5 },
-    { ticket_id: 't-6', workspace_id: workspaceId, ticket_key: 'JIRA-106', title: '[SP-2] UI Theme Toggle CSS Fixes', status: 'todo', priority: 'low', assignee: '', reporter: 'admin', story_points: 2 },
-    { ticket_id: 't-7', workspace_id: workspaceId, ticket_key: 'JIRA-107', title: '[SP-8] Setup K8s Deployment Pipeline', status: 'todo', priority: 'high', assignee: '', reporter: 'admin', story_points: 8 }
+    { ticket_id: 't-1', workspace_id: workspaceId, ticket_key: 'JIRA-101', title: '[SP-8] Refactor Auth Middleware', status: 'todo', priority: 'high', assignee: '', reporter: 'admin', story_points: 8, issue_type: 'story' },
+    { ticket_id: 't-2', workspace_id: workspaceId, ticket_key: 'JIRA-102', title: '[SP-5] Fix Database Deadlock', status: 'in_progress', priority: 'high', assignee: 'dev-1', reporter: 'admin', story_points: 5, issue_type: 'story' },
+    { ticket_id: 't-3', workspace_id: workspaceId, ticket_key: 'JIRA-103', title: '[SP-13] Build Cockpit UI Dashboard', status: 'todo', priority: 'medium', assignee: '', reporter: 'admin', story_points: 13, issue_type: 'story' },
+    { ticket_id: 't-4', workspace_id: workspaceId, ticket_key: 'JIRA-104', title: '[SP-3] Add Logging Middleware', status: 'done', priority: 'low', assignee: 'dev-1', reporter: 'admin', story_points: 3, issue_type: 'story' },
+    { ticket_id: 't-5', workspace_id: workspaceId, ticket_key: 'JIRA-105', title: '[SP-5] Setup Docker Compose Multi-Node', status: 'todo', priority: 'medium', assignee: 'dev-3', reporter: 'admin', story_points: 5, issue_type: 'story' },
+    { ticket_id: 't-6', workspace_id: workspaceId, ticket_key: 'JIRA-106', title: '[SP-2] UI Theme Toggle CSS Fixes', status: 'todo', priority: 'low', assignee: '', reporter: 'admin', story_points: 2, issue_type: 'story' },
+    { ticket_id: 't-7', workspace_id: workspaceId, ticket_key: 'JIRA-107', title: '[SP-8] Setup K8s Deployment Pipeline', status: 'todo', priority: 'high', assignee: '', reporter: 'admin', story_points: 8, issue_type: 'story' }
   ]
   localStorage.setItem(STORAGE_TICKETS_KEY, JSON.stringify(seeds))
   return seeds
@@ -1097,6 +1098,9 @@ export async function deleteTicketLocal(serverUrl: string, ticketId: string): Pr
 
 // Create ticket local and sync back
 export async function createTicketLocal(serverUrl: string, ticketData: Partial<JiraTicket> & { title: string; ticket_key: string; workspace_id: string }): Promise<JiraTicket> {
+  if (ticketData.issue_type === 'story' && !ticketData.epic_ticket_id) {
+    throw new Error('Stories must be created within the scope of an epic')
+  }
   const cached = localStorage.getItem(STORAGE_TICKETS_KEY)
   let tickets: JiraTicket[] = []
   if (cached) {
@@ -1118,6 +1122,8 @@ export async function createTicketLocal(serverUrl: string, ticketData: Partial<J
     reporter: ticketData.reporter || 'operator',
     story_points: parseStoryPoints(ticketData),
     prd_id: ticketData.prd_id || undefined,
+    project_id: ticketData.project_id || undefined,
+    parent_ticket_id: ticketData.parent_ticket_id || undefined,
     sprint_id: ticketData.sprint_id || undefined,
     description: ticketData.description,
     acceptance_criteria: ticketData.acceptance_criteria,
@@ -1148,6 +1154,8 @@ export async function createTicketLocal(serverUrl: string, ticketData: Partial<J
       assignee: newTicket.assignee,
       reporter: newTicket.reporter,
       prd_id: newTicket.prd_id,
+      project_id: newTicket.project_id,
+      parent_ticket_id: newTicket.parent_ticket_id,
       sprint_id: newTicket.sprint_id,
       description: newTicket.description,
       acceptance_criteria: newTicket.acceptance_criteria,

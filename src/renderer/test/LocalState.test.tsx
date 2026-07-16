@@ -175,6 +175,12 @@ describe('localState service', () => {
       expect(queue[0].ticketId).toBe('t-1')
     })
 
+    it('rejects stories that are not scoped to an epic', async () => {
+      await expect(createTicketLocal('http://s', {
+        title: 'Unscoped story', ticket_key: 'STORY-1', workspace_id: 'w-1', issue_type: 'story'
+      })).rejects.toThrow('Stories must be created within the scope of an epic')
+    })
+
     it('creates ticket in local cache and queues mutation', async () => {
       localStorage.setItem('savant_forge_tickets', JSON.stringify([]))
 
