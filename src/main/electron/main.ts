@@ -1,4 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain } from 'electron'
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import packageJson from '../../../package.json'
 import {
@@ -29,6 +31,8 @@ process.env.VITE_PUBLIC = app.isPackaged
 
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
+let forgeMcpServer: ReturnType<typeof createServer> | null = null
+const FORGE_MCP_PORT = Number(process.env.SAVANT_FORGE_MCP_PORT || 8095)
 
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 
@@ -88,6 +92,80 @@ function createTray() {
   ]))
 }
 
+const FORGE_MCP_TOOLS = [
+  {
+    name: 'forge_list_stories',
+    description: 'List Forge stories, optionally scoped to an epic, PRD, or ticket key.',
+    inputSchema: { type: 'object', properties: { epic_ticket_id: { type: 'string' }, prd_id: { type: 'string' }, ticket_key: { type: 'string' }, include_done: { type: 'boolean' } } }
+  },
+  {
+    name: 'forge_create_stories',
+    description: 'Create one or more stories in the current Forge epic. Pass prd_id when the epic id is not known.',
+    inputSchema: { type: 'object', required: ['stories'], properties: { epic_ticket_id: { type: 'string' }, prd_id: { type: 'string' }, stories: { type: 'array', items: { type: 'object' } } } }
+  },
+  {
+    name: 'forge_groom_story',
+    description: 'Groom an existing Forge story by updating its title, description, acceptance criteria, estimate, priority, or status.',
+    inputSchema: { type: 'object', required: ['story_id'], properties: { story_id: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, acceptance_criteria: { type: 'string' }, story_points: { type: 'number' }, priority: { type: 'string' }, status: { type: 'string' } } }
+  }
+]
+
+function writeJson(res: ServerResponse, status: number, body: unknown) {
+  res.statusCode = status
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify(body))
+}
+
+async function readRequestBody(req: IncomingMessage) {
+  let body = ''
+  for await (const chunk of req) body += chunk
+  return body ? JSON.parse(body) : {}
+}
+
+async function callForgeRendererTool(name: string, args: Record<string, unknown>) {
+  const targetWin = win
+  if (!targetWin || targetWin.isDestroyed()) throw new Error('Forge window is not available')
+  const requestId = randomUUID()
+  return new Promise((resolve, reject) => {
+    const eventName = `forge:mcp-result:${requestId}`
+    const timeout = setTimeout(() => {
+      ipcMain.removeListener('forge:mcp-result', onResult)
+      reject(new Error('Forge MCP request timed out'))
+    }, 15000)
+    const onResult = (_event: Electron.IpcMainEvent, resultRequestId: string, result: { ok: boolean; value?: unknown; error?: string }) => {
+      if (resultRequestId !== requestId) return
+      clearTimeout(timeout)
+      ipcMain.removeListener('forge:mcp-result', onResult)
+      result.ok ? resolve(result.value) : reject(new Error(result.error || 'Forge MCP operation failed'))
+    }
+    ipcMain.on('forge:mcp-result', onResult)
+    targetWin.webContents.send('forge:mcp-request', { requestId, name, args })
+  })
+}
+
+function startForgeMcpServer() {
+  forgeMcpServer = createServer(async (req, res) => {
+    if (req.url === '/health') return writeJson(res, 200, { status: 'ok', name: 'savant-forge' })
+    if (req.method !== 'POST' || req.url !== '/mcp') return writeJson(res, 404, { error: 'Not found' })
+    try {
+      const message = await readRequestBody(req)
+      if (message.method === 'initialize') return writeJson(res, 200, { jsonrpc: '2.0', id: message.id, result: { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'savant-forge', version: packageJson.version } } })
+      if (message.method === 'notifications/initialized') return res.end()
+      if (message.method === 'tools/list') return writeJson(res, 200, { jsonrpc: '2.0', id: message.id, result: { tools: FORGE_MCP_TOOLS } })
+      if (message.method === 'tools/call') {
+        const name = String(message.params?.name || '')
+        if (!FORGE_MCP_TOOLS.some((tool) => tool.name === name)) throw new Error(`Unknown Forge MCP tool: ${name}`)
+        const value = await callForgeRendererTool(name, message.params?.arguments || {})
+        return writeJson(res, 200, { jsonrpc: '2.0', id: message.id, result: { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value } })
+      }
+      return writeJson(res, 200, { jsonrpc: '2.0', id: message.id, error: { code: -32601, message: `Method not found: ${message.method}` } })
+    } catch (error) {
+      return writeJson(res, 200, { jsonrpc: '2.0', error: { code: -32000, message: error instanceof Error ? error.message : String(error) } })
+    }
+  })
+  forgeMcpServer.listen(FORGE_MCP_PORT, '127.0.0.1', () => console.log(`Forge MCP server listening on http://127.0.0.1:${FORGE_MCP_PORT}/mcp`))
+}
+
 function registerAthenaIpc() {
   ipcMain.on('athena:load-threads', (event) => {
     event.returnValue = loadAthenaThreads()
@@ -133,7 +211,7 @@ function registerAthenaIpc() {
       if (!response.ok) return []
       const data = await response.json()
       const tools = Array.isArray(data?.tools) ? data.tools : Array.isArray(data) ? data : []
-      return tools.slice(0, 20).map((tool: any) => ({
+      return [...FORGE_MCP_TOOLS, ...tools].slice(0, 40).map((tool: any) => ({
         name: tool.name || 'unknown',
         description: tool.description || ''
       }))
@@ -315,6 +393,7 @@ app.whenReady().then(() => {
   app.setName(appName)
   registerAthenaIpc()
   createWindow()
+  startForgeMcpServer()
   createTray()
 })
 
@@ -329,5 +408,7 @@ app.on('window-all-closed', () => {
     app.quit()
     win = null
     tray = null
+    forgeMcpServer?.close()
+    forgeMcpServer = null
   }
 })

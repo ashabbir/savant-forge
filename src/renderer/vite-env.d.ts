@@ -1,5 +1,10 @@
 /// <reference types="vite/client" />
 
+declare module 'better-sqlite3' {
+  const Database: any
+  export default Database
+}
+
 interface SavantShellRuntime {
   appName: string
   appVersion: string
@@ -24,5 +29,7 @@ interface Window {
     runAgentViaGateway: (payload: Record<string, unknown>) => Promise<unknown>
     killAthenaRun: (runId: string) => Promise<void>
     onAthenaRunEvent: (callback: (data: { runId: string; tempRunId?: string; event: any }) => void) => () => void
+    onForgeMcpRequest: (callback: (data: { requestId: string; name: string; args: Record<string, unknown> }) => void) => () => void
+    resolveForgeMcpRequest: (requestId: string, result: { ok: boolean; value?: unknown; error?: string }) => void
   }
 }

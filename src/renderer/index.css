@@ -1731,6 +1731,88 @@ h3 {
   box-shadow: 0 0 4px rgba(0, 229, 255, 0.2);
 }
 
+/* Olympus previous-chat browser parity. Each card is an object-scoped
+   conversation; opening it restores both the object and its messages. */
+.athena-history-browser { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; background: var(--cp-bg-0); }
+.athena-history-browser-header { flex-shrink: 0; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--cp-border); background: var(--cp-bg-1); }
+.athena-history-browser-header h2 { color: var(--section-label); font: bold 12px 'Share Tech Mono', monospace; letter-spacing: .12em; }
+.athena-history-browser-header p { margin: 4px 0 0; color: var(--muted-foreground); font: 10px 'Share Tech Mono', monospace; }
+.athena-history-close { width: 30px; height: 30px; color: var(--muted-foreground); background: transparent; border: 1px solid var(--cp-border); cursor: pointer; }
+.athena-history-close:hover { color: var(--foreground); border-color: var(--cp-cyan); }
+.athena-history-empty { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px; color: var(--muted-foreground); font: 11px 'Share Tech Mono', monospace; text-align: center; }
+.athena-history-list { width: 100%; max-width: 760px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.athena-history-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px; background: var(--cp-bg-1); border: 1px solid var(--cp-border); }
+.athena-history-card:hover { border-color: var(--cp-cyan); }
+.athena-history-card-open { min-width: 0; flex: 1; padding: 0; color: var(--foreground); background: transparent; border: 0; text-align: left; cursor: pointer; }
+.athena-history-card-open:hover .athena-history-card-title > span:first-child { color: var(--cp-cyan); }
+.athena-history-card-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; font: bold 11px 'Share Tech Mono', monospace; }
+.athena-history-card-title > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.athena-history-card-title > span:last-child { flex-shrink: 0; color: var(--muted-foreground); font-size: 9px; font-weight: 400; }
+.athena-history-card-open p { margin: 8px 0 0; display: -webkit-box; overflow: hidden; color: var(--muted-foreground); font: 10px/1.5 'Share Tech Mono', monospace; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.athena-history-card-open small { display: inline-block; margin-top: 10px; color: var(--cp-cyan); font: 9px 'Share Tech Mono', monospace; text-transform: uppercase; }
+.athena-history-delete { flex-shrink: 0; padding: 8px; color: var(--muted-foreground); background: transparent; border: 0; cursor: pointer; }
+.athena-history-delete:hover { color: #f87171; }
+
+/* Olympus Athena DetailDrawer parity: model row, full-height message surface,
+   compact USER/ATHENA bubbles, and a textarea + ASK action row. */
+.athena-olympus-chat {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.athena-olympus-model-row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  background: var(--cp-bg-2);
+  border: 1px solid var(--cp-border);
+}
+
+.athena-olympus-model-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.athena-olympus-model-info span,
+.athena-olympus-message-meta,
+.athena-olympus-thinking > span { color: var(--muted-foreground); font-size: 8px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.athena-olympus-model-info strong { overflow: hidden; color: var(--cp-cyan); font-size: 10px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.athena-olympus-model-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.athena-olympus-model-actions button { flex-shrink: 0; padding: 4px; color: var(--muted-foreground); background: transparent; border: 0; }
+.athena-olympus-model-actions button:hover:not(:disabled) { color: var(--cp-cyan); background: rgba(0, 229, 255, .08); }
+.athena-olympus-model-actions button:last-child:hover { color: #f87171; background: rgba(239, 68, 68, .1); }
+.athena-olympus-model-actions button:disabled { opacity: .35; cursor: not-allowed; }
+.athena-olympus-messages { min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding: 8px; background: var(--cp-bg-2); border: 1px solid var(--cp-border); }
+.athena-olympus-empty { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; color: var(--muted-foreground); text-align: center; }
+.athena-olympus-empty-icon { width: 32px; height: 32px; color: var(--cp-cyan); animation: pulse 2s infinite; }
+.athena-olympus-empty h4 { margin: 0 0 4px; color: var(--foreground); font-size: 11px; letter-spacing: .08em; }
+.athena-olympus-empty p { max-width: 220px; margin: 0; font: 10px/1.5 Rajdhani, sans-serif; }
+.athena-olympus-message-list { display: flex; flex-direction: column; gap: 12px; }
+.athena-olympus-message { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.athena-olympus-message.user { align-items: flex-end; }
+.athena-olympus-message-meta { display: flex; align-items: center; gap: 8px; opacity: .65; }
+.athena-olympus-message-actions { display: flex; gap: 6px; opacity: 0; transition: opacity .15s; }
+.athena-olympus-message:hover .athena-olympus-message-actions { opacity: 1; }
+.athena-olympus-message-actions button { padding: 0; color: var(--muted-foreground); background: transparent; border: 0; }
+.athena-olympus-message-actions button:hover { color: var(--cp-cyan); }
+.athena-olympus-message-actions button:last-child:hover { color: #f87171; }
+.athena-olympus-message-bubble { max-width: 100%; padding: 8px; overflow: hidden; color: var(--foreground); border: 1px solid rgba(167, 139, 250, .2); background: rgba(167, 139, 250, .06); font: 10px/1.55 Rajdhani, sans-serif; overflow-wrap: anywhere; }
+.athena-olympus-message.user .athena-olympus-message-bubble { border-color: rgba(0, 229, 255, .25); background: rgba(0, 229, 255, .06); text-align: right; white-space: pre-wrap; }
+.athena-olympus-message-bubble p { margin: 0 0 8px; }
+.athena-olympus-message-bubble p:last-child { margin-bottom: 0; }
+.athena-olympus-message-bubble pre { max-width: 100%; overflow-x: auto; padding: 6px; background: var(--cp-bg-1); border: 1px solid var(--cp-border); }
+.athena-olympus-thinking { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.athena-olympus-thinking > div { width: 100%; }
+.athena-olympus-input-form { flex-shrink: 0; display: flex; gap: 8px; }
+.athena-olympus-input-form textarea { min-height: 32px; max-height: 120px; flex: 1; resize: none; padding: 6px 12px; color: var(--foreground); background: var(--cp-bg-0); border: 1px solid var(--cp-border); outline: none; font: 12px 'Share Tech Mono', monospace; }
+.athena-olympus-input-form textarea:focus { border-color: var(--cp-cyan); }
+.athena-olympus-input-form button { flex-shrink: 0; padding: 6px 16px; color: var(--cp-bg-0); background: var(--cp-cyan); border: 0; font: bold 11px 'Share Tech Mono', monospace; text-transform: uppercase; }
+.athena-olympus-input-form button:hover:not(:disabled) { opacity: .9; }
+.athena-olympus-input-form button:disabled { opacity: .5; }
+
 .athena-chat-header {
   flex-shrink: 0;
   min-height: 32px;

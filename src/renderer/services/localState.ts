@@ -826,6 +826,42 @@ function seedSprintPlans(): SprintPlan[] {
   ]
 }
 
+function seedFeatureRequests(): FeatureRequest[] {
+  const now = new Date().toISOString()
+  return [
+    {
+      id: 'feature-forge-project-workspace',
+      project_id: 'project-forge-core',
+      title: 'Project workspace overview',
+      description: 'Give product managers a single view of project health, goals, features, PRDs, and delivery ownership.',
+      status: 'final',
+      prd_ids: [],
+      created_at: now,
+      updated_at: now
+    },
+    {
+      id: 'feature-forge-prd-story-flow',
+      project_id: 'project-forge-core',
+      title: 'Feature-to-story planning flow',
+      description: 'Turn an approved feature brief into a PRD and reviewable implementation stories before assigning work to a squad.',
+      status: 'draft',
+      prd_ids: [],
+      created_at: now,
+      updated_at: now
+    },
+    {
+      id: 'feature-athena-context',
+      project_id: 'project-athena-ai',
+      title: 'Context-aware Athena assistance',
+      description: 'Keep project, feature, PRD, and ticket context available to Athena throughout the product planning workflow.',
+      status: 'draft',
+      prd_ids: [],
+      created_at: now,
+      updated_at: now
+    }
+  ]
+}
+
 function seedProjectEntities(): ProjectEntity[] {
   const today = new Date()
   const start = new Date(today)
@@ -868,12 +904,18 @@ function seedProjectEntities(): ProjectEntity[] {
 
 export function getFeatureRequests(): FeatureRequest[] {
   const stored = localStorage.getItem(STORAGE_FEATURES_KEY)
-  if (!stored) return []
+  if (!stored) {
+    const seed = seedFeatureRequests()
+    localStorage.setItem(STORAGE_FEATURES_KEY, JSON.stringify(seed))
+    return seed
+  }
   try {
     const parsed = JSON.parse(stored)
     return Array.isArray(parsed) ? parsed.map((f) => normalizeFeatureRequest(f)) : []
   } catch {
-    return []
+    const seed = seedFeatureRequests()
+    localStorage.setItem(STORAGE_FEATURES_KEY, JSON.stringify(seed))
+    return seed
   }
 }
 

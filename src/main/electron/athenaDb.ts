@@ -119,10 +119,11 @@ const threadUpsert = db.prepare(`
 function migrateLegacyAthenaThreads() {
   const legacyPath = path.join(app.getPath('userData'), 'athena.db')
   if (path.resolve(legacyPath) === path.resolve(path.join(sharedSavantDir, 'olympus.db')) || !fs.existsSync(legacyPath)) return
-  let legacy: Database.Database | null = null
+  let legacy: { prepare: (sql: string) => { all: () => Array<Record<string, any>> }; close: () => void } | null = null
   try {
     legacy = new Database(legacyPath, { readonly: true })
-    const rows = legacy.prepare('SELECT * FROM athena_threads').all() as Array<Record<string, any>>
+    if (!legacy) return
+    const rows = legacy.prepare('SELECT * FROM athena_threads').all()
     for (const row of rows) {
       const thread = normalizeThread(row)
       const exists = db.prepare('SELECT 1 FROM chat_history WHERE target_id = ?').get(thread.contextKey)

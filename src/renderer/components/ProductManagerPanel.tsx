@@ -92,6 +92,7 @@ export interface PMPanelProps {
   onSelectPrd?: (prdId: string | null) => void
   onGeneratePlan?: (prd: PRDDocument, tickets: GeneratedPlanTicket[], sprintId?: string) => void | Promise<void>
   openInitialProject?: boolean
+  openInitialFeature?: boolean
   onNavigateToFlow?: (flow: 'project' | 'squad' | 'sprint', entityId?: string) => void
 }
 
@@ -1234,7 +1235,7 @@ function EditDrawer({
 export function ProductManagerPanel({
   projects, features, prds, tickets, squads, sprintPlans = [], activeSquadId,
   onSaveProject, onSaveFeature, onDeleteFeature, onSavePRD, onDeletePRD,
-  onConvertFeatureToPRD, onOpenAthena, onNewProject, onSelectionChange, onRequestEditProject, onRequestDeleteProject, onProjectDrawerChange, projectActionSignal, selectedPrdId, onSelectPrd, onGeneratePlan, openInitialProject, onNavigateToFlow
+  onConvertFeatureToPRD, onOpenAthena, onNewProject, onSelectionChange, onRequestEditProject, onRequestDeleteProject, onProjectDrawerChange, projectActionSignal, selectedPrdId, onSelectPrd, onGeneratePlan, openInitialProject, openInitialFeature, onNavigateToFlow
 }: PMPanelProps) {
   const [selection, setSelection] = useState<PMSelection>({ kind: 'none' })
   const [drawerMode, setDrawerMode] = useState<PMDrawerMode>('closed')
@@ -1251,6 +1252,19 @@ export function ProductManagerPanel({
   // Reset the local selection when navigating back to Overview so a project
   // drawer cannot remain mounted over the landing page.
   useEffect(() => {
+    if (openInitialFeature) {
+      const firstFeature = features[0]
+      if (!firstFeature) return
+      if (selection.kind === 'feature' && selection.id === firstFeature.id && drawerMode === 'view-project') return
+      const firstSelection = { kind: 'feature' as const, id: firstFeature.id, projectId: firstFeature.project_id }
+      setSelection(firstSelection)
+      setProjectTab('features')
+      setDrawerMode('view-project')
+      onProjectDrawerChange?.(true)
+      onSelectionChange?.(firstSelection, projects.find((project) => project.id === firstFeature.project_id))
+      return
+    }
+
     if (openInitialProject) {
       if (selection.kind !== 'none' || !projects.length) return
       const firstProject = projects[0]
@@ -1268,7 +1282,7 @@ export function ProductManagerPanel({
       onProjectDrawerChange?.(false)
       onSelectionChange?.({ kind: 'none' })
     }
-  }, [projects, selection.kind, drawerMode, onSelectionChange, onProjectDrawerChange, openInitialProject])
+  }, [projects, features, selection.kind, drawerMode, onSelectionChange, onProjectDrawerChange, openInitialProject, openInitialFeature])
 
   // Sync external PRD selection
   useEffect(() => {
@@ -1413,6 +1427,12 @@ export function ProductManagerPanel({
       setFinalizationError(message)
       console.error('Failed to finalize accepted stories', error)
     }
+  }
+
+  function handleRequestEditSelectedFeature() {
+    if (!selectedFeature) return
+    setDrawerMode('edit-feature')
+    onProjectDrawerChange?.(true)
   }
 
   function handleRequestEditCurrentProject() {
@@ -1591,10 +1611,10 @@ export function ProductManagerPanel({
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--cp-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--cp-bg-2)' }}>
               <div>
                 <div style={{ fontSize: '10px', fontFamily: "'Share Tech Mono', monospace", letterSpacing: '0.12em', color: 'var(--section-label)', textTransform: 'uppercase' }}>
-                  PROJECT OVERVIEW
+                  {selection.kind === 'feature' ? 'FEATURE OVERVIEW' : 'PROJECT OVERVIEW'}
                 </div>
                 <div style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--cp-cyan)' }}>
-                  {selectedProject.name}
+                  {selection.kind === 'feature' && selectedFeature ? selectedFeature.title : selectedProject.name}
                 </div>
               </div>
               <button
@@ -1605,6 +1625,7 @@ export function ProductManagerPanel({
                 EDIT
               </button>
             </div>
+            {selection.kind !== 'feature' && (
             <div style={{ display: 'flex', gap: '6px', padding: '10px 16px', borderBottom: '1px solid var(--cp-border)', background: 'var(--cp-bg-1)' }}>
               {[
                 ['project', 'PROJECT'],
@@ -1630,7 +1651,18 @@ export function ProductManagerPanel({
                 </button>
               ))}
             </div>
-            {projectTab === 'project' && (
+            )}
+            {selection.kind === 'feature' && selectedFeature && (
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--cp-border)', background: 'var(--cp-bg-1)' }}>
+                  <button type="button" onClick={() => handleSelect({ kind: 'project', id: selectedProject.id })} style={{ border: '1px solid var(--cp-border)', background: 'transparent', color: 'var(--cp-cyan)', padding: '5px 9px', fontFamily: "'Share Tech Mono', monospace", fontSize: '10px', cursor: 'pointer' }}>
+                    ← BACK TO PROJECT
+                  </button>
+                </div>
+                <FeatureOverview feature={selectedFeature} project={selectedProject} allFeatures={features} />
+              </div>
+            )}
+            {selection.kind !== 'feature' && projectTab === 'project' && (
             <ProjectOverview
               project={selectedProject}
               features={features}
@@ -1639,7 +1671,7 @@ export function ProductManagerPanel({
               onSelect={handleSelect}
             />
             )}
-            {projectTab === 'features' && (
+            {selection.kind !== 'feature' && projectTab === 'features' && (
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
                 <SectionLabel>Feature Requests in Project</SectionLabel>
                 <div style={{ display: 'grid', gap: '6px' }}>
@@ -1653,8 +1685,8 @@ export function ProductManagerPanel({
                           display: 'flex',
                           alignItems: 'center',
                           gap: '10px',
-                          background: selection.kind === 'feature' && selection.id === feature.id ? 'rgba(0,229,255,0.08)' : 'var(--cp-bg-2)',
-                          border: selection.kind === 'feature' && selection.id === feature.id ? '1px solid var(--cp-cyan)' : '1px solid var(--cp-border)',
+                          background: 'var(--cp-bg-2)',
+                          border: '1px solid var(--cp-border)',
                           padding: '10px 12px',
                           textAlign: 'left',
                           cursor: 'pointer'
@@ -1680,7 +1712,7 @@ export function ProductManagerPanel({
                 </div>
               </div>
             )}
-            {projectTab === 'prds' && (
+            {selection.kind !== 'feature' && projectTab === 'prds' && (
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
                 <SectionLabel>PRDs in Project</SectionLabel>
                 <div style={{ display: 'grid', gap: '7px' }}>

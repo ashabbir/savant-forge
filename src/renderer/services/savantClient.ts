@@ -46,6 +46,9 @@ function appendAuthHeader(headers: Headers, apiKey = getStoredApiKey()) {
   if (apiKey && !headers.has('X-API-Key')) {
     headers.set('X-API-Key', apiKey)
   }
+  if (!headers.has('X-App-Name')) {
+    headers.set('X-App-Name', 'savant-forge')
+  }
   return headers
 }
 

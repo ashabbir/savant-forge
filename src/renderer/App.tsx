@@ -36,6 +36,7 @@ import {
   LogIn,
   X,
   Copy,
+  FileCode2,
   Activity,
   Terminal,
   StopCircle,
@@ -189,6 +190,55 @@ function cleanAthenaOutput(text: string): string {
   return text
 }
 
+function escapeAthenaExportHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+function buildAthenaExportHtml(title: string, messages: AthenaThreadMessage[]) {
+  const entries = messages.map((message) => {
+    const text = escapeAthenaExportHtml(message.text)
+    return `<article class="message ${message.sender}"><header><strong>${message.sender === 'user' ? 'USER' : 'ATHENA'}</strong><time>${escapeAthenaExportHtml(message.timestamp)}</time></header><div class="content">${text.replace(/\n/g, '<br>')}</div></article>`
+  }).join('')
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeAthenaExportHtml(title)}</title><style>:root{color-scheme:dark;font-family:Rajdhani,Arial,sans-serif;color:#f0f4f8;background:#06090f}body{max-width:900px;margin:0 auto;padding:40px;background:#06090f}h1{font:700 22px Orbitron,Arial;margin:0 0 24px;color:#00e5ff}.message{margin:0 0 16px;padding:14px;border:1px solid rgba(0,229,255,.15);background:#0f1929;break-inside:avoid}.message.user{border-left:3px solid #00e5ff}.message.assistant{border-left:3px solid #ff00aa}header{display:flex;justify-content:space-between;margin-bottom:8px;color:#9aaabd;font:10px 'Share Tech Mono',monospace;letter-spacing:.08em}.content{font-size:14px;line-height:1.6;overflow-wrap:anywhere;white-space:normal}</style></head><body><h1>${escapeAthenaExportHtml(title)}</h1>${entries}</body></html>`
+}
+
+function downloadAthenaHtml(html: string, filename: string) {
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+function printAthenaHtml(html: string) {
+  const frame = document.createElement('iframe')
+  frame.style.position = 'fixed'
+  frame.style.width = '1px'
+  frame.style.height = '1px'
+  frame.style.opacity = '0'
+  frame.style.pointerEvents = 'none'
+  document.body.appendChild(frame)
+  const frameDocument = frame.contentDocument
+  if (!frameDocument || !frame.contentWindow) {
+    frame.remove()
+    return
+  }
+  frame.onload = () => {
+    frame.contentWindow?.focus()
+    frame.contentWindow?.print()
+    window.setTimeout(() => frame.remove(), 1000)
+  }
+  frameDocument.open()
+  frameDocument.write(html)
+  frameDocument.close()
+}
+
 function buildAthenaContextProfile(params: {
   activeTab: 'squad' | 'projects' | 'blueprint' | 'settings'
   activeSquad: Squad | undefined
@@ -197,8 +247,9 @@ function buildAthenaContextProfile(params: {
   selectedPrd: PRDDocument | undefined
   selectedProject: ProjectEntity | undefined
   config: ForgeConfig | null
+  tickets: JiraTicket[]
 }) {
-  const { activeTab, activeSquad, selectedDeveloper, selectedTicket, selectedPrd, selectedProject, config } = params
+  const { activeTab, activeSquad, selectedDeveloper, selectedTicket, selectedPrd, selectedProject, config, tickets } = params
   if (selectedDeveloper) {
     const squad = activeSquad?.name || 'Unassigned squad'
     return {
@@ -235,8 +286,9 @@ function buildAthenaContextProfile(params: {
       summary: 'Architectural and product definition context for PRD authoring, decomposing features into epics, stories, and tasks, then grooming the resulting backlog.',
       promptSections: [
         ['CONTEXT MODE', 'PRD definition'],
-        ['TARGET ENTITY', `prd_id=${selectedPrd.id}\ntitle=${selectedPrd.title}`],
-        ['PRD CONTENT', selectedPrd.content]
+        ['TARGET ENTITY', `prd_id=${selectedPrd.id}\ntitle=${selectedPrd.title}\nepic_ids=${(selectedPrd.epic_ids || []).join(',')}`],
+        ['PRD CONTENT', selectedPrd.content],
+        ['PRD STORIES', JSON.stringify(tickets.filter((ticket) => ticket.prd_id === selectedPrd.id).map((ticket) => ({ id: ticket.ticket_id, key: ticket.ticket_key, title: ticket.title, epic_ticket_id: ticket.epic_ticket_id, status: ticket.status, story_points: ticket.story_points })), null, 2)]
       ] as [string, string][]
     }
   }
@@ -313,7 +365,7 @@ type AthenaContextOverride = {
 } | null
 
 function getAthenaThreadTitle(kind: AthenaContextKind, title: string, fallback: string) {
-  if (kind === 'developer' || kind === 'squad' || kind === 'ticket' || kind === 'prd') return title
+  if (kind === 'developer' || kind === 'squad' || kind === 'ticket' || kind === 'prd' || kind === 'project' || kind === 'feature') return title
   return fallback
 }
 
@@ -537,6 +589,73 @@ function App() {
   // PRD States
   const [prds, setPrds] = useState<PRDDocument[]>([])
   const [selectedPrdId, setSelectedPrdId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const unsubscribe = window.system?.onForgeMcpRequest?.(({ requestId, name, args }) => {
+      void (async () => {
+        try {
+          if (name === 'forge_list_stories') {
+            const filtered = tickets.filter((ticket) => {
+              if (ticket.issue_type !== 'story') return false
+              if (args.epic_ticket_id && ticket.epic_ticket_id !== args.epic_ticket_id) return false
+              if (args.prd_id && ticket.prd_id !== args.prd_id) return false
+              if (args.ticket_key && ticket.ticket_key !== args.ticket_key) return false
+              if (!args.include_done && ['done', 'closed', 'resolved'].includes(ticket.status.toLowerCase())) return false
+              return true
+            })
+            return window.system?.resolveForgeMcpRequest(requestId, { ok: true, value: filtered })
+          }
+
+          if (name === 'forge_create_stories') {
+            const storyArgs = Array.isArray(args.stories) ? args.stories : []
+            if (!storyArgs.length) throw new Error('stories must contain at least one story')
+            const prd = args.prd_id ? prds.find((item) => item.id === args.prd_id) : undefined
+            const epicTicketId = String(args.epic_ticket_id || prd?.epic_ids?.[0] || '')
+            if (!epicTicketId) throw new Error('An epic_ticket_id or a prd_id linked to an epic is required')
+            const created = await Promise.all(storyArgs.map((story: any, index) => createTicketLocal(serverUrl, {
+              workspace_id: FORGE_WORKSPACE_ID,
+              ticket_key: String(story.ticket_key || `FORGE-${Date.now()}-${index + 1}`),
+              title: String(story.title || 'Untitled story'),
+              description: story.description || '',
+              acceptance_criteria: Array.isArray(story.acceptance_criteria) ? story.acceptance_criteria : String(story.acceptance_criteria || '').split('\n').map((item: string) => item.trim()).filter(Boolean),
+              issue_type: 'story',
+              epic_ticket_id: epicTicketId,
+              prd_id: args.prd_id ? String(args.prd_id) : prd?.id,
+              project_id: prd?.project_id,
+              story_points: Number(story.story_points || 0),
+              priority: String(story.priority || 'medium'),
+              status: 'todo',
+              reporter: 'athena',
+              review_status: 'accepted'
+            })))
+            setTickets((current) => [...current, ...created])
+            return window.system?.resolveForgeMcpRequest(requestId, { ok: true, value: created })
+          }
+
+          if (name === 'forge_groom_story') {
+            const story = tickets.find((ticket) => ticket.ticket_id === args.story_id || ticket.ticket_key === args.story_id)
+            if (!story) throw new Error(`Story not found: ${String(args.story_id || '')}`)
+            const updated = await updateTicketLocal(serverUrl, {
+              ...story,
+              ...(args.title !== undefined ? { title: String(args.title) } : {}),
+              ...(args.description !== undefined ? { description: String(args.description) } : {}),
+              ...(args.acceptance_criteria !== undefined ? { acceptance_criteria: Array.isArray(args.acceptance_criteria) ? args.acceptance_criteria.map(String) : String(args.acceptance_criteria).split('\n').map((item) => item.trim()).filter(Boolean) } : {}),
+              ...(args.story_points !== undefined ? { story_points: Number(args.story_points) } : {}),
+              ...(args.priority !== undefined ? { priority: String(args.priority) } : {}),
+              ...(args.status !== undefined ? { status: String(args.status) } : {})
+            })
+            setTickets((current) => current.map((ticket) => ticket.ticket_id === updated.ticket_id ? updated : ticket))
+            return window.system?.resolveForgeMcpRequest(requestId, { ok: true, value: updated })
+          }
+          throw new Error(`Unsupported Forge MCP tool: ${name}`)
+        } catch (error) {
+          window.system?.resolveForgeMcpRequest(requestId, { ok: false, error: error instanceof Error ? error.message : String(error) })
+        }
+      })()
+    })
+    return unsubscribe
+  }, [serverUrl, tickets, prds])
+
   const [selectedPmProject, setSelectedPmProject] = useState<ProjectEntity | null>(null)
   const [isProjectDrawerOpen, setIsProjectDrawerOpen] = useState(false)
   const [isCreatePrdModalOpen, setIsCreatePrdModalOpen] = useState(false)
@@ -738,8 +857,9 @@ function App() {
     selectedTicket: selectedTicket || undefined,
     selectedPrd: selectedPrd || undefined,
     selectedProject,
-    config
-  }), [activeTab, activeSquad, selectedDeveloper, selectedTicket, selectedPrd, selectedProject, config])
+    config,
+    tickets
+  }), [activeTab, activeSquad, selectedDeveloper, selectedTicket, selectedPrd, selectedProject, config, tickets])
   const athenaContextProfile = athenaContextOverride || baseAthenaContextProfile
 
   const currentAthenaThread = useMemo(() => {
@@ -1310,6 +1430,18 @@ function App() {
     }
   }
 
+  function handleDownloadAthenaConversation(format: 'html' | 'pdf', messages = chatMessages, title = athenaContextProfile.title) {
+    if (messages.length === 0) return
+    const html = buildAthenaExportHtml(title, messages)
+    const filename = `athena-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'conversation'}`
+    if (format === 'html') downloadAthenaHtml(html, `${filename}.html`)
+    else printAthenaHtml(html)
+  }
+
+  function handleDownloadAthenaMessage(format: 'html' | 'pdf', message: AthenaThreadMessage) {
+    handleDownloadAthenaConversation(format, [message], `${message.sender === 'user' ? 'USER' : 'ATHENA'} message`)
+  }
+
   function handleDeleteAthenaMessage(messageId: string) {
     const threadId = activeAthenaThreadId || (athenaContextProfile ? `athena-thread-${athenaContextProfile.key}` : null)
     if (threadId) {
@@ -1324,6 +1456,12 @@ function App() {
     setActiveRunId(null)
     setActiveRunEvents([])
     setIsThreadBrowserOpen(false)
+    // A history entry owns the active object. Clear competing selections first
+    // so a stale inspector cannot replace the restored context on the next render.
+    setSelectedTicketId(null)
+    setSelectedDeveloperId(null)
+    setSelectedPrdId(null)
+    setSelectedPmProject(null)
 
     // Parse kind and key to restore selection
     const { contextKind, contextKey } = thread
@@ -1400,6 +1538,7 @@ function App() {
         setActiveTab('projects')
         setAthenaContextOverride(null)
       } else {
+        setActiveTab('projects')
         setAthenaContextOverride({
           kind: 'project',
           key: contextKey,
@@ -1408,6 +1547,26 @@ function App() {
           promptSections: [['RESTORED CONTEXT', `project_id=${projId}\nname=${thread.title}`]]
         })
       }
+    } else if (contextKind === 'feature') {
+      // Features are owned by the product surface; keep the stable object identity
+      // even when the feature is no longer present in the current local dataset.
+      setActiveTab('projects')
+      setAthenaContextOverride({
+        kind: 'feature',
+        key: contextKey,
+        title: thread.title,
+        summary: `Restored feature context for "${thread.title}".`,
+        promptSections: [['RESTORED CONTEXT', `feature_id=${contextKey.replace('feature:', '')}\ntitle=${thread.title}`]]
+      })
+    } else if (contextKind === 'blueprint') {
+      setActiveTab('blueprint')
+      setAthenaContextOverride({
+        kind: 'blueprint',
+        key: contextKey,
+        title: thread.title,
+        summary: `Restored blueprint context for "${thread.title}".`,
+        promptSections: [['RESTORED CONTEXT', `blueprint_id=${contextKey.replace('blueprint:', '')}\ntitle=${thread.title}`]]
+      })
     } else {
       setAthenaContextOverride(null)
     }
@@ -2907,172 +3066,126 @@ function App() {
                   </div>
 
                   {isThreadBrowserOpen ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, overflowY: 'auto', padding: '10px', background: 'var(--cp-bg-2)' }}>
-                      <div style={{ fontSize: '10px', color: 'var(--section-label)', fontFamily: "'Share Tech Mono', monospace", marginBottom: '4px', borderBottom: '1px solid var(--cp-border)', paddingBottom: '4px' }}>
-                        PAST CONVERSATIONS ({athenaThreads.length})
+                    <div className="athena-history-browser">
+                      <div className="athena-history-browser-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <History size={18} className="athena-chat-bot-icon" />
+                          <div>
+                            <h2>PREVIOUS ATHENA CHATS</h2>
+                            <p>Open a conversation to restore its object and continue.</p>
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => setIsThreadBrowserOpen(false)} aria-label="Close previous chats" className="athena-history-close">✕</button>
                       </div>
                       {athenaThreads.length === 0 ? (
-                        <div style={{ color: 'var(--muted-foreground)', fontSize: '11px', fontStyle: 'italic', fontFamily: "'Share Tech Mono', monospace", padding: '8px 0', textAlign: 'center' }}>
-                          No past conversations found.
-                        </div>
+                        <div className="athena-history-empty">No saved Athena chats yet.</div>
                       ) : (
-                        athenaThreads
-                          .slice()
-                          .sort((a, b) => new Date(b.lastUpdatedAt).getTime() - new Date(a.lastUpdatedAt).getTime())
-                          .map((thread) => (
-                            <div
-                              key={thread.id}
-                              style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px',
-                                background: 'var(--cp-bg-3)',
-                                border: '1px solid var(--cp-border)',
-                                padding: '8px 10px',
-                                borderRadius: '2px',
-                                transition: 'all 0.2s',
-                                cursor: 'pointer'
-                              }}
-                              onClick={() => handleRestoreAthenaThread(thread)}
-                              className="thread-history-item"
-                            >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ flex: 1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left' }}>
-                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--foreground)' }}>
-                                    {thread.title}
-                                  </span>
-                                  <span style={{
-                                    fontSize: '8px',
-                                    fontFamily: "'Share Tech Mono', monospace",
-                                    color: 'var(--cp-cyan)',
-                                    background: 'rgba(0, 229, 255, 0.08)',
-                                    border: '1px solid rgba(0, 229, 255, 0.15)',
-                                    padding: '1px 4px',
-                                    marginLeft: '6px',
-                                    textTransform: 'uppercase'
-                                  }}>
-                                    {thread.contextKind}
-                                  </span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    if (confirm(`Delete conversation "${thread.title}"?`)) {
+                        <div className="athena-history-list">
+                          {athenaThreads
+                            .slice()
+                            .sort((a, b) => new Date(b.lastUpdatedAt).getTime() - new Date(a.lastUpdatedAt).getTime())
+                            .map((thread) => {
+                              const firstUserMessage = thread.messages.find((message) => message.sender === 'user')
+                              return (
+                                <div key={thread.id} className="athena-history-card">
+                                  <button type="button" onClick={() => handleRestoreAthenaThread(thread)} className="athena-history-card-open">
+                                    <div className="athena-history-card-title">
+                                      <span>{thread.title || thread.entity?.name || thread.contextKey}</span>
+                                      <span>{new Date(thread.lastUpdatedAt).toLocaleString()}</span>
+                                    </div>
+                                    <p>{firstUserMessage?.text || 'Empty conversation'}</p>
+                                    <small>{thread.messages.length} messages · OPEN OBJECT AND CONTINUE</small>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      if (confirm(`Delete conversation "${thread.title}"?`)) {
                                       handleDeleteAthenaThread(thread.id)
                                     }
                                   }}
-                                  title="Delete thread"
-                                  aria-label="Delete thread"
-                                  style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: 'var(--cp-magenta)',
-                                    cursor: 'pointer',
-                                    padding: '0 4px',
-                                    fontSize: '11px'
-                                  }}
-                                >
-                                  <Trash2 size={11} />
-                                </button>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--muted-foreground)', fontFamily: "'Share Tech Mono', monospace" }}>
-                                <span>{thread.messages.length} messages</span>
-                                <span>{new Date(thread.lastUpdatedAt).toLocaleString()}</span>
-                              </div>
-                            </div>
-                          ))
+                                    title="Delete thread"
+                                    aria-label="Delete thread"
+                                    className="athena-history-delete"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
+                              )
+                            })}
+                        </div>
                       )}
                     </div>
                   ) : (
                     <>
-                      <div className="athena-chat-context">
-                        <div className="athena-chat-context-label">ACTIVE CONTEXT</div>
-                        <div className="athena-chat-context-title">{athenaContextProfile.title}</div>
-                        <div className="athena-chat-context-summary">{athenaContextProfile.summary}</div>
-                      </div>
-                      <div className="athena-chat-meta-row">
-                        <span className="athena-meta-badge">PERSONA: {athenaPersona.name}</span>
-                        <span className="athena-meta-badge">PROVIDER: {config?.athena_provider || 'codex'}</span>
-                        <span className="athena-meta-badge">MODEL: {config?.athena_model || 'gpt-5-codex'}</span>
-                      </div>
-                      {/* Chat messages viewport */}
-                      <div className="athena-chat-viewport">
-                        {chatMessages.map(msg => (
-                          <div key={msg.id} className={`athena-msg-row ${msg.sender === 'user' ? 'user' : 'assistant'}`}>
-                            <div className="athena-msg-avatar">
-                              {msg.sender === 'user' ? <UserRound size={12} /> : <Bot size={12} />}
-                            </div>
-                            <div className="athena-msg-bubble-container">
-                              <div className="athena-msg-meta">
-                                {msg.sender === 'assistant' ? 'ATHENA' : 'OPERATOR'} · {msg.timestamp}
+                      <div className="athena-olympus-chat">
+                        <div className="athena-olympus-model-row">
+                          <div className="athena-olympus-model-info">
+                            <span>ACTIVE CONTEXT</span>
+                            <strong>{athenaContextProfile.title}</strong>
+                          </div>
+                          <div className="athena-olympus-model-actions">
+                            <button type="button" onClick={() => handleDownloadAthenaConversation('html')} disabled={chatMessages.length === 0} title="Download conversation as HTML" aria-label="Download conversation as HTML"><FileCode2 size={12} /></button>
+                            <button type="button" onClick={() => handleDownloadAthenaConversation('pdf')} disabled={chatMessages.length === 0} title="Print conversation as PDF" aria-label="Print conversation as PDF"><FileText size={12} /></button>
+                            <button type="button" onClick={() => handleDeleteAthenaThread(activeAthenaThreadId || `athena-thread-${athenaContextProfile.key}`)} title="Clear chat history" aria-label="Clear chat history"><Trash2 size={12} /></button>
+                          </div>
+                        </div>
+
+                        <div className="athena-olympus-messages">
+                          {chatMessages.length === 0 ? (
+                            <div className="athena-olympus-empty">
+                              <Sparkles className="athena-olympus-empty-icon" />
+                              <div>
+                                <h4>ATHENA</h4>
+                                <p>{athenaContextProfile.summary}</p>
                               </div>
-                              <div className={`athena-msg-bubble ${msg.sender === 'user' ? 'user' : 'assistant'}`}>
-                                <div className="athena-msg-content-wrapper">
-                                  <div className="athena-msg-text">
-                                    {msg.sender === 'user' ? (
-                                      <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
-                                    ) : (
-                                      <div className="athena-markdown-content text-[11px] leading-relaxed">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
-                                      </div>
-                                    )}
+                            </div>
+                          ) : (
+                            <div className="athena-olympus-message-list">
+                              {chatMessages.map((msg, i) => (
+                                <div key={msg.id || i} className={`athena-olympus-message ${msg.sender === 'user' ? 'user' : 'assistant'}`}>
+                                  <div className="athena-olympus-message-meta">
+                                    <span>{msg.sender === 'user' ? 'USER' : 'ATHENA'}</span>
+                                    <div className="athena-olympus-message-actions">
+                                      <button type="button" onClick={() => handleCopyAthenaMessage(msg.text)} title="Copy message" aria-label="Copy message"><Copy size={9} /></button>
+                                      <button type="button" onClick={() => handleDownloadAthenaMessage('html', msg)} title="Download message as HTML" aria-label="Download message as HTML"><FileCode2 size={9} /></button>
+                                      <button type="button" onClick={() => handleDownloadAthenaMessage('pdf', msg)} title="Print message as PDF" aria-label="Print message as PDF"><FileText size={9} /></button>
+                                      <button type="button" onClick={() => handleDeleteAthenaMessage(msg.id)} title="Delete message" aria-label="Delete message"><Trash2 size={9} /></button>
+                                    </div>
                                   </div>
-                                  <div className="athena-msg-actions">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleCopyAthenaMessage(msg.text)}
-                                      title="Copy message"
-                                      aria-label="Copy message"
-                                      className="athena-msg-action-btn copy"
-                                    >
-                                      <Copy size={9} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteAthenaMessage(msg.id)}
-                                      title="Delete message"
-                                      aria-label="Delete message"
-                                      className="athena-msg-action-btn delete"
-                                    >
-                                      <Trash2 size={9} />
-                                    </button>
+                                  <div className="athena-olympus-message-bubble">
+                                    {msg.sender === 'user' ? <span>{msg.text}</span> : <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>}
                                   </div>
                                 </div>
-                              </div>
+                              ))}
+                              {isAiLoading && (
+                                <div className="athena-olympus-thinking">
+                                  <span>ATHENA IS THINKING...</span>
+                                  <div>{activeRunEvents.map((ev, idx) => renderAthenaRunEvent(ev, idx))}</div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))}
-                        {isAiLoading && (
-                          <div className="run-events-container">
-                            <div className="run-events-header">
-                              <span>ATHENA_ACTIVE_PROCESS</span>
-                              <span className="running-dots">...</span>
-                            </div>
-                            {activeRunEvents.map((ev, idx) => renderAthenaRunEvent(ev, idx))}
-                          </div>
-                        )}
-                        <div ref={chatEndRef} />
-                      </div>
+                          )}
+                          <div ref={chatEndRef} />
+                        </div>
 
-                      {/* Chat input box */}
-                      <form onSubmit={handleSendAthenaMessage} className="athena-chat-input-form">
-                        <input 
-                          type="text"
-                          placeholder="ask athena..."
-                          value={chatInput}
-                          onChange={e => setChatInput(e.target.value)}
-                          disabled={isAiLoading}
-                          className="athena-chat-input-field"
-                        />
-                        <button 
-                          type="submit"
-                          disabled={isAiLoading}
-                          className="athena-chat-submit-btn"
-                        >
-                          <Send size={10} />
-                        </button>
-                      </form>
+                        <form onSubmit={handleSendAthenaMessage} className="athena-olympus-input-form">
+                          <textarea
+                            value={chatInput}
+                            onChange={e => setChatInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault()
+                                if (chatInput.trim() && !isAiLoading) handleSendAthenaMessage(e)
+                              }
+                            }}
+                            placeholder="Ask ATHENA about this context..."
+                            disabled={isAiLoading}
+                            rows={1}
+                          />
+                          <button type="submit" disabled={isAiLoading || !chatInput.trim()}>ASK</button>
+                        </form>
+                      </div>
                     </>
                   )}
                 </div>

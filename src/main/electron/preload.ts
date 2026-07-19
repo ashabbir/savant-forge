@@ -38,5 +38,13 @@ contextBridge.exposeInMainWorld('system', {
     return () => {
       ipcRenderer.removeListener('athena:run-event', listener)
     }
+  },
+  onForgeMcpRequest: (callback: (data: { requestId: string; name: string; args: Record<string, unknown> }) => void): (() => void) => {
+    const listener = (_event: any, data: any) => callback(data)
+    ipcRenderer.on('forge:mcp-request', listener)
+    return () => ipcRenderer.removeListener('forge:mcp-request', listener)
+  },
+  resolveForgeMcpRequest: (requestId: string, result: { ok: boolean; value?: unknown; error?: string }): void => {
+    ipcRenderer.send('forge:mcp-result', requestId, result)
   }
 })
