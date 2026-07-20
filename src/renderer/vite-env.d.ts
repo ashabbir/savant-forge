@@ -28,6 +28,7 @@ interface Window {
     loadAthenaMcpTools: () => Promise<Array<{ name: string; description: string }>>
     runAgentViaGateway: (payload: Record<string, unknown>) => Promise<unknown>
     killAthenaRun: (runId: string) => Promise<void>
+    steerAthenaRun?: (runId: string, feedback: string) => Promise<unknown>
     onAthenaRunEvent: (callback: (data: { runId: string; tempRunId?: string; event: any }) => void) => () => void
     onForgeMcpRequest: (callback: (data: { requestId: string; name: string; args: Record<string, unknown> }) => void) => () => void
     resolveForgeMcpRequest: (requestId: string, result: { ok: boolean; value?: unknown; error?: string }) => void

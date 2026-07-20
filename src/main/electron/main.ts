@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain } from 'electron'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
+import fs from 'node:fs'
 import path from 'node:path'
 import packageJson from '../../../package.json'
 import {
@@ -225,12 +226,47 @@ function registerAthenaIpc() {
     // Remove transient properties not expected by the gateway endpoint
     const { tempRunId, workspace_id, contextKey, contextKind, ...gatewayPayload } = payload
 
-    const response = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(gatewayPayload),
-      signal: AbortSignal.timeout(30000)
-    })
+    let response: Response
+    if (Array.isArray((gatewayPayload as any).files) && (gatewayPayload as any).files.length > 0) {
+      const formData = new FormData()
+      formData.append('prompt', String(gatewayPayload.prompt || ''))
+      if (gatewayPayload.chain) {
+        formData.append('chain', JSON.stringify(gatewayPayload.chain))
+      }
+      if (gatewayPayload.cwd) {
+        formData.append('cwd', String(gatewayPayload.cwd))
+      }
+      if (gatewayPayload.execution) {
+        formData.append('execution', String(gatewayPayload.execution))
+      }
+      if (gatewayPayload.concurrency) {
+        formData.append('concurrency', String(gatewayPayload.concurrency))
+      }
+      if (gatewayPayload.session_id) {
+        formData.append('session_id', String(gatewayPayload.session_id))
+      }
+      for (const filePath of (gatewayPayload as any).files) {
+        if (typeof filePath === 'string' && fs.existsSync(filePath)) {
+          const buffer = fs.readFileSync(filePath)
+          const fileName = path.basename(filePath)
+          const blob = new Blob([buffer])
+          formData.append('files', blob, fileName)
+        }
+      }
+      response = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs`, {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(30000)
+      })
+    } else {
+      response = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(gatewayPayload),
+        signal: AbortSignal.timeout(30000)
+      })
+    }
+
     if (!response.ok) {
       throw new Error(`Gateway rejected Athena run: ${response.status} ${response.statusText}`)
     }
@@ -300,6 +336,13 @@ function registerAthenaIpc() {
               }
               if (eventPayload?.type === 'complete') {
                 assistantText = String(eventPayload.content || eventPayload.message || assistantText || '')
+                if (eventPayload.provider || eventPayload.model) {
+                  updateAthenaRun(runId, (r) => ({
+                    ...r,
+                    provider: eventPayload.provider || r.provider,
+                    model: eventPayload.model || r.model
+                  }))
+                }
               }
 
               // Send event to renderer
@@ -329,6 +372,13 @@ function registerAthenaIpc() {
           const finalRunData = await finalResponse.json()
           if (finalRunData.result?.response || finalRunData.response) {
             assistantText = finalRunData.result.response || finalRunData.response
+          }
+          if (finalRunData.result?.provider || finalRunData.result?.model) {
+            updateAthenaRun(runId, (r) => ({
+              ...r,
+              provider: finalRunData.result.provider || r.provider,
+              model: finalRunData.result.model || r.model
+            }))
           }
         }
       } catch (fetchErr) {
@@ -386,6 +436,18 @@ function registerAthenaIpc() {
     if (!response.ok) {
       throw new Error(`Gateway rejected Athena run kill: ${response.status} ${response.statusText}`)
     }
+  })
+  ipcMain.handle('athena:steer-run', async (_event, payload: { runId: string; feedback: string }) => {
+    const gatewayUrl = process.env.SAVANT_GATEWAY_URL || 'http://127.0.0.1:3100'
+    const response = await fetch(`${gatewayUrl.replace(/\/+$/, '')}/runs/${payload.runId}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback: payload.feedback })
+    })
+    if (!response.ok) {
+      throw new Error(`Gateway rejected Athena run steering: ${response.status} ${response.statusText}`)
+    }
+    return response.json()
   })
 }
 

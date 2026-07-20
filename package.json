@@ -1,6 +1,6 @@
 {
   "name": "savant-forge",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Savant Forge - Resource & Capability Management Engine",
   "author": "Savant",
   "main": "dist-electron/main.js",

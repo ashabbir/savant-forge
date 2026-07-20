@@ -1,7 +1,6 @@
 {
   "0": "Squad State & Metrics",
   "1": "App Screens & Modals",
-  "2": "Community 2",
   "3": "Node Package Configuration",
   "4": "Local SQLite DB & IPC",
   "5": "Sprint Workbench Component",
@@ -18,21 +17,16 @@
   "16": "App Core & Style Guide",
   "17": "Local Storage Test Mocks",
   "18": "Savant App Shell Modules",
-  "19": "Community 19",
   "20": "TypeScript Node Config",
   "21": "Electron Dev Launcher",
-  "22": "Community 22",
-  "23": "Community 23",
-  "24": "Community 24",
-  "25": "Community 25",
   "26": "Project Gemini Rules",
   "27": "Vite Environment Types",
-  "28": "Community 28",
   "29": "AddTicketModal Tests",
   "30": "LoginScreen Tests",
   "31": "SprintWorkbenchPanel Tests",
   "32": "Vite Configuration Spec",
   "33": "Vite Build Setup",
   "34": "Vitest Testing Config",
-  "35": "Community 35"
+  "35": "Community 35",
+  "37": "Community 37"
 }

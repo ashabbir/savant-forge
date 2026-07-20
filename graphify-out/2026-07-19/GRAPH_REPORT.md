@@ -1,23 +1,22 @@
-# Graph Report - savant-forge  (2026-07-19)
+# Graph Report - savant-forge  (2026-07-14)
 
 ## Corpus Check
-- 53 files · ~65,093 words
+- 49 files · ~57,143 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 568 nodes · 994 edges · 36 communities (29 shown, 7 thin omitted)
+- 525 nodes · 903 edges · 30 communities (23 shown, 7 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 8 edges (avg confidence: 0.86)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a32a178a`
+- Built from commit: `658f630c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_Squad State & Metrics|Squad State & Metrics]]
 - [[_COMMUNITY_App Screens & Modals|App Screens & Modals]]
-- [[_COMMUNITY_Community 2|Community 2]]
 - [[_COMMUNITY_Node Package Configuration|Node Package Configuration]]
 - [[_COMMUNITY_Local SQLite DB & IPC|Local SQLite DB & IPC]]
 - [[_COMMUNITY_Sprint Workbench Component|Sprint Workbench Component]]
@@ -34,33 +33,28 @@
 - [[_COMMUNITY_App Core & Style Guide|App Core & Style Guide]]
 - [[_COMMUNITY_Local Storage Test Mocks|Local Storage Test Mocks]]
 - [[_COMMUNITY_Savant App Shell Modules|Savant App Shell Modules]]
-- [[_COMMUNITY_Community 19|Community 19]]
 - [[_COMMUNITY_TypeScript Node Config|TypeScript Node Config]]
 - [[_COMMUNITY_Electron Dev Launcher|Electron Dev Launcher]]
-- [[_COMMUNITY_Community 22|Community 22]]
-- [[_COMMUNITY_Community 23|Community 23]]
-- [[_COMMUNITY_Community 24|Community 24]]
-- [[_COMMUNITY_Community 25|Community 25]]
 - [[_COMMUNITY_Project Gemini Rules|Project Gemini Rules]]
 - [[_COMMUNITY_Vite Environment Types|Vite Environment Types]]
-- [[_COMMUNITY_Community 28|Community 28]]
 - [[_COMMUNITY_AddTicketModal Tests|AddTicketModal Tests]]
 - [[_COMMUNITY_LoginScreen Tests|LoginScreen Tests]]
 - [[_COMMUNITY_SprintWorkbenchPanel Tests|SprintWorkbenchPanel Tests]]
 - [[_COMMUNITY_Vite Build Setup|Vite Build Setup]]
 - [[_COMMUNITY_Community 35|Community 35]]
+- [[_COMMUNITY_Community 37|Community 37]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `JiraTicketDB` - 22 edges
 2. `Forge Style Guide` - 18 edges
 3. `compilerOptions` - 16 edges
-4. `JiraTicket` - 14 edges
-5. `App()` - 13 edges
-6. `16. Visual Examples` - 13 edges
-7. `Squad` - 12 edges
-8. `getStoredApiKey()` - 11 edges
-9. `scripts` - 10 edges
-10. `build` - 10 edges
+4. `App()` - 13 edges
+5. `16. Visual Examples` - 13 edges
+6. `JiraTicket` - 12 edges
+7. `scripts` - 10 edges
+8. `build` - 10 edges
+9. `Squad` - 10 edges
+10. `getStoredApiKey()` - 10 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Left Collapsible Panel Design Pattern` --rationale_for--> `SquadCockpit()`  [INFERRED]
@@ -83,27 +77,23 @@
 - **Forge Main Views** — components_loginscreen_loginscreen, components_productmanagerpanel_productmanagerpanel, components_sprintworkbenchpanel_sprintworkbenchpanel [INFERRED 0.95]
 - **Squad Cockpit UI components** — components_squadcockpit_squadcockpit, components_squadstatspanel_squadstatspanel, services_localstate_buildsquadsnapshot [INFERRED 0.85]
 
-## Communities (36 total, 7 thin omitted)
+## Communities (30 total, 7 thin omitted)
 
 ### Community 0 - "Squad State & Metrics"
-Cohesion: 0.07
-Nodes (58): buildSquadSnapshot(), CompanyHoliday, computeCarryoverPoints(), computeDeveloperAvailability(), computeVelocity(), countEventDays(), createTicketLocal(), DEFAULT_WORKING_DAYS (+50 more)
+Cohesion: 0.05
+Nodes (62): healthColors, PMDrawerMode, PMPanelProps, PMSelection, buildSquadSnapshot(), CompanyHoliday, computeCarryoverPoints(), computeDeveloperAvailability() (+54 more)
 
 ### Community 1 - "App Screens & Modals"
-Cohesion: 0.05
-Nodes (32): Athena Context Awareness, AddTicketModal(), AddTicketModalProps, DeveloperModal(), describeSpecialties(), normalizeSpecialtyTags(), LeftRail(), LeftRailProps (+24 more)
-
-### Community 2 - "Community 2"
-Cohesion: 0.10
-Nodes (12): healthColors, PMDrawerMode, PMSelection, createPlanningId(), createStructuredPrd(), decomposeEpicIntoTickets(), DEFAULT_PRD_TEMPLATE(), finalizePlanningSummary() (+4 more)
+Cohesion: 0.06
+Nodes (29): Athena Context Awareness, AddTicketModal(), DeveloperModal(), describeSpecialties(), normalizeSpecialtyTags(), LeftRail(), LeftRailProps, LoginScreen() (+21 more)
 
 ### Community 3 - "Node Package Configuration"
 Cohesion: 0.04
 Nodes (46): author, dependencies, better-sqlite3, lucide-react, react, react-dom, react-markdown, react-syntax-highlighter (+38 more)
 
 ### Community 4 - "Local SQLite DB & IPC"
-Cohesion: 0.09
-Nodes (32): AthenaContextKind, AthenaEntityRef, AthenaRunRecord, AthenaThread, AthenaThreadMessage, db, deleteAthenaThread(), loadAthenaRuns() (+24 more)
+Cohesion: 0.13
+Nodes (26): AthenaContextKind, AthenaRunRecord, AthenaThread, AthenaThreadMessage, db, deleteAthenaThread(), loadAthenaRuns(), loadAthenaThreads() (+18 more)
 
 ### Community 5 - "Sprint Workbench Component"
 Cohesion: 0.08
@@ -114,16 +104,16 @@ Cohesion: 0.13
 Nodes (3): JiraTicketDB, JiraTicketDB — PostgreSQL backend., Return full Jira ticket records linked to a session (JOIN with jira_tickets).
 
 ### Community 7 - "App Settings & Client"
-Cohesion: 0.19
-Nodes (19): SettingsModal(), SettingsModalProps, ForgeConfig, appendAuthHeader(), checkGatewayHealth(), checkServerHealth(), ConnectionStatus, fetchJson() (+11 more)
+Cohesion: 0.18
+Nodes (20): SettingsModal(), SettingsModalProps, ForgeConfig, appendAuthHeader(), checkGatewayHealth(), checkServerHealth(), ConnectionStatus, fetchJson() (+12 more)
 
 ### Community 8 - "Athena Store Context"
-Cohesion: 0.21
-Nodes (23): Window System API Extension, AnyArray, appendAthenaThreadMessage(), AthenaContextKind, AthenaEntityRef, AthenaRunRecord, AthenaThread, AthenaThreadMessage (+15 more)
+Cohesion: 0.22
+Nodes (22): Window System API Extension, AnyArray, appendAthenaThreadMessage(), AthenaContextKind, AthenaRunRecord, AthenaThread, AthenaThreadMessage, deleteAthenaThread() (+14 more)
 
 ### Community 9 - "Specialties & Stats UI"
-Cohesion: 0.18
-Nodes (6): formatTrend(), SquadStatsPanel(), SquadStatsPanelProps, statusCopy, trendValue(), SquadSnapshot
+Cohesion: 0.12
+Nodes (11): pillStyle(), SCORE_META, SpecialtyScore, SpecialtyTag, SpecialtyTagPills(), formatTrend(), SquadStatsPanel(), SquadStatsPanelProps (+3 more)
 
 ### Community 10 - "TypeScript Compiler Options"
 Cohesion: 0.11
@@ -146,20 +136,16 @@ Cohesion: 0.36
 Nodes (10): ATHENA_SYSTEM_DIRECTIVE, AthenaContextHit, AthenaTool, buildAthenaPromptSections(), fetchAthenaCodeContext(), fetchAthenaMcpTools(), formatAthenaContextHits(), getAthenaSystem() (+2 more)
 
 ### Community 15 - "Design Framing & Notes"
-Cohesion: 0.18
-Nodes (11): 10. Motion, 11. Forge-Specific Product Framing, 12. Implementation Notes, 13. What Forge Should Not Look Like, 14. Reference Alignment, 15. Design Checklist, 1. Design Direction, 2. App Shell (+3 more)
+Cohesion: 0.05
+Nodes (41): 10. Motion, 11. Forge-Specific Product Framing, 12. Implementation Notes, 13. What Forge Should Not Look Like, 14. Reference Alignment, 15. Design Checklist, 1. Design Direction, 2. App Shell (+33 more)
 
 ### Community 16 - "App Core & Style Guide"
-Cohesion: 0.25
-Nodes (8): nativeFetch, Sanctum App Shell Layout, Sanctum Color Palette, Local Database and Authentication Surface, Right Rail Drawer Interaction, Forge Style Guide Document, Sanctum Typography System, Sanctum Visual System
+Cohesion: 0.29
+Nodes (7): Sanctum App Shell Layout, Sanctum Color Palette, Local Database and Authentication Surface, Right Rail Drawer Interaction, Forge Style Guide Document, Sanctum Typography System, Sanctum Visual System
 
 ### Community 18 - "Savant App Shell Modules"
 Cohesion: 0.38
 Nodes (4): appModule, SavantAppModule, SavantModuleAction, SavantModuleNavItem
-
-### Community 19 - "Community 19"
-Cohesion: 0.29
-Nodes (7): 3.1 Top Header, 3.2.1 Left Collapsible Panel, 3.2 Left Navigation Rail, 3.3 Center Workspace, 3.4 Right Context Rail, 3.5 Bottom Status Bar, 3. Layout Model
 
 ### Community 20 - "TypeScript Node Config"
 Cohesion: 0.29
@@ -169,49 +155,33 @@ Nodes (6): compilerOptions, allowSyntheticDefaultImports, composite, module, mod
 Cohesion: 0.33
 Nodes (3): http, { spawn }, startedAt
 
-### Community 22 - "Community 22"
-Cohesion: 0.33
-Nodes (6): 6.1 Cards, 6.2 Tables and Lists, 6.3 Tabs and Subtabs, 6.4 Modals, 6.5 Toasts, 6. Component Patterns
-
-### Community 23 - "Community 23"
-Cohesion: 0.40
-Nodes (5): 4.1 Overall Tone, 4.2 Typography, 4.3 Color, 4.4 Surfaces, 4. Visual Language
-
-### Community 24 - "Community 24"
-Cohesion: 0.40
-Nodes (5): 7.1 Header, 7.2 Left Bar, 7.3 Right Bar, 7.4 Bottom Bar, 7. Shell-Specific Guidance
-
-### Community 25 - "Community 25"
-Cohesion: 0.50
-Nodes (4): 9.1 Loading, 9.2 Empty States, 9.3 Error States, 9. State and Feedback
-
-### Community 28 - "Community 28"
-Cohesion: 0.67
-Nodes (3): 5.1 Primary Hierarchy, 5.2 Secondary Hierarchy, 5. Navigation and Information Hierarchy
-
 ### Community 35 - "Community 35"
-Cohesion: 0.06
-Nodes (40): pillStyle(), SCORE_META, SpecialtyScore, SpecialtyTag, SpecialtyTagPills(), iconButtonStyle, PeopleManagementPanel(), primaryButtonStyle (+32 more)
+Cohesion: 0.12
+Nodes (18): calculateWorkingDaysBetween(), fieldLabelStyle, getEndDateFromWorkingDays(), inlineButtonStyle(), inputStyle, panelBodyStyle, panelCardStyle, panelHeaderStyle (+10 more)
+
+### Community 37 - "Community 37"
+Cohesion: 0.39
+Nodes (6): AddTicketModalProps, SquadCockpitProps, Developer, JiraTicket, SprintPlan, Squad
 
 ## Knowledge Gaps
-- **214 isolated node(s):** `name`, `version`, `description`, `author`, `main` (+209 more)
+- **200 isolated node(s):** `name`, `version`, `description`, `author`, `main` (+195 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Forge Style Guide` connect `Design Framing & Notes` to `UI Layout Examples`, `App Core & Style Guide`, `Community 19`, `Community 22`, `Community 23`, `Community 24`, `Community 25`, `Community 28`?**
-  _High betweenness centrality (0.126) - this node is a cross-community bridge._
-- **Why does `SprintWorkbenchPanel()` connect `Sprint Workbench Component` to `App Screens & Modals`, `Community 35`, `Jira SQLite Integration`?**
-  _High betweenness centrality (0.060) - this node is a cross-community bridge._
+- **Why does `Forge Style Guide` connect `Design Framing & Notes` to `App Core & Style Guide`, `UI Layout Examples`?**
+  _High betweenness centrality (0.134) - this node is a cross-community bridge._
+- **Why does `SprintWorkbenchPanel()` connect `Sprint Workbench Component` to `App Screens & Modals`, `Community 37`, `Jira SQLite Integration`?**
+  _High betweenness centrality (0.064) - this node is a cross-community bridge._
 - **Why does `JiraTicketDB` connect `Jira SQLite Integration` to `Sprint Workbench Component`?**
-  _High betweenness centrality (0.057) - this node is a cross-community bridge._
+  _High betweenness centrality (0.061) - this node is a cross-community bridge._
 - **What connects `JiraTicketDB — PostgreSQL backend.`, `Return full Jira ticket records linked to a session (JOIN with jira_tickets).`, `name` to the rest of the system?**
-  _223 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _209 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Squad State & Metrics` be split into smaller, more focused modules?**
-  _Cohesion score 0.06746031746031746 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.050949367088607596 - nodes in this community are weakly interconnected._
 - **Should `App Screens & Modals` be split into smaller, more focused modules?**
-  _Cohesion score 0.05143191116306254 - nodes in this community are weakly interconnected._
-- **Should `Community 2` be split into smaller, more focused modules?**
-  _Cohesion score 0.10256410256410256 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0573025856044724 - nodes in this community are weakly interconnected._
+- **Should `Node Package Configuration` be split into smaller, more focused modules?**
+  _Cohesion score 0.0425531914893617 - nodes in this community are weakly interconnected._

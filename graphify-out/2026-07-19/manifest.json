@@ -15,18 +15,18 @@
     "semantic_hash": "550510f7b8f18b324c0fd690855917dc"
   },
   "src/main/electron/main.ts": {
-    "mtime": 1784511921.5936792,
-    "ast_hash": "cb61f2f156c4679be0e431849307ee34",
+    "mtime": 1784083711.332692,
+    "ast_hash": "851ddd92736036facf613a4124a3c8a4",
     "semantic_hash": ""
   },
   "src/main/electron/preload.ts": {
-    "mtime": 1784511928.734407,
-    "ast_hash": "62536d5b98fd5f91b2c089bdb06c7061",
+    "mtime": 1784083374.2354202,
+    "ast_hash": "8070f2e9d625fba1d57c7869c0c87895",
     "semantic_hash": ""
   },
   "src/renderer/App.tsx": {
-    "mtime": 1784378808.969124,
-    "ast_hash": "f130a430298fdddd4e37d1c74b9a1bcb",
+    "mtime": 1784083761.9362469,
+    "ast_hash": "e131fc2ee42b5641e5e028ae3717aacb",
     "semantic_hash": ""
   },
   "src/renderer/appModule.tsx": {
@@ -70,9 +70,9 @@
     "semantic_hash": "448627b51681122e6bd7496943f0a7eb"
   },
   "src/renderer/components/SprintWorkbenchPanel.tsx": {
-    "mtime": 1784175924.4126127,
-    "ast_hash": "98a9d47c2cdb355afd8150d46bf1af89",
-    "semantic_hash": ""
+    "mtime": 1782401703.1822743,
+    "ast_hash": "98dc30060c6f306afada77c4155c3678",
+    "semantic_hash": "98dc30060c6f306afada77c4155c3678"
   },
   "src/renderer/components/SquadCockpit.tsx": {
     "mtime": 1782401967.0559056,
@@ -85,9 +85,9 @@
     "semantic_hash": "194de82ccf8997e0e31370df49ac383a"
   },
   "src/renderer/main.tsx": {
-    "mtime": 1784399232.4359486,
-    "ast_hash": "bfa29b862de28f1ef48431d5deee4d3c",
-    "semantic_hash": ""
+    "mtime": 1782051089.5991802,
+    "ast_hash": "be62e99493d80c0f7e07311cd52ea9cd",
+    "semantic_hash": "be62e99493d80c0f7e07311cd52ea9cd"
   },
   "src/renderer/public/forge_config.json": {
     "mtime": 1782094197.6941485,
@@ -95,24 +95,24 @@
     "semantic_hash": "2ad780b4095517edc0b94359e04bc144"
   },
   "src/renderer/services/athenaContext.ts": {
-    "mtime": 1784084944.4942505,
-    "ast_hash": "791413e254199863c8b1f5c8cf98a10f",
-    "semantic_hash": ""
+    "mtime": 1783304509.600094,
+    "ast_hash": "5911ce4351e5d21ff4f896ef48c1f4f9",
+    "semantic_hash": "5911ce4351e5d21ff4f896ef48c1f4f9"
   },
   "src/renderer/services/athenaStore.ts": {
-    "mtime": 1784172739.100843,
-    "ast_hash": "867ece09d55291dc3c290560079e2e6e",
+    "mtime": 1784083379.710685,
+    "ast_hash": "d547d8e6a11c9b39f354507b374af116",
     "semantic_hash": ""
   },
   "src/renderer/services/localState.ts": {
-    "mtime": 1784287654.5509696,
-    "ast_hash": "b5bb680cfb58f0563aa234f85e3f2a21",
-    "semantic_hash": ""
+    "mtime": 1782614560.9118268,
+    "ast_hash": "d0787ffde4d97bbbbf46af77a4047189",
+    "semantic_hash": "d0787ffde4d97bbbbf46af77a4047189"
   },
   "src/renderer/services/savantClient.ts": {
-    "mtime": 1784511899.3050551,
-    "ast_hash": "fddae64748e7e017e30256212762513a",
-    "semantic_hash": ""
+    "mtime": 1782094871.3705838,
+    "ast_hash": "1198924ac1d9dcc6cfba8fe1920ca307",
+    "semantic_hash": "1198924ac1d9dcc6cfba8fe1920ca307"
   },
   "src/renderer/shellTypes.ts": {
     "mtime": 1782051089.6029756,
@@ -125,8 +125,8 @@
     "semantic_hash": "77beb52f501a7870161cfafc5fbd7615"
   },
   "src/renderer/test/App.test.tsx": {
-    "mtime": 1784108303.4577694,
-    "ast_hash": "9d83df46d74cfda4b512d20b8f4a7b96",
+    "mtime": 1784082864.4915094,
+    "ast_hash": "f2c78df6cc8128e19489b0cb7143f2ec",
     "semantic_hash": ""
   },
   "src/renderer/test/LeftRail.test.tsx": {
@@ -135,9 +135,9 @@
     "semantic_hash": "01289a13e037b32f873ca4318797e580"
   },
   "src/renderer/test/LocalState.test.tsx": {
-    "mtime": 1784175037.833558,
-    "ast_hash": "86349224c06ec3e25b797727fd83cdec",
-    "semantic_hash": ""
+    "mtime": 1782614584.9003546,
+    "ast_hash": "bbabb154964dd109c0df2420c2e5eaaa",
+    "semantic_hash": "bbabb154964dd109c0df2420c2e5eaaa"
   },
   "src/renderer/test/LoginScreen.test.tsx": {
     "mtime": 1783306818.4239814,
@@ -165,9 +165,9 @@
     "semantic_hash": "1033b7a4c87fbb045aa3b281c72c2889"
   },
   "src/renderer/test/athenaContext.test.ts": {
-    "mtime": 1784084980.4604044,
-    "ast_hash": "f45a92533635e1f91f6d009a5d53dd4e",
-    "semantic_hash": ""
+    "mtime": 1783304477.7240589,
+    "ast_hash": "5fef6285a4b051f356efb6e633e283a9",
+    "semantic_hash": "5fef6285a4b051f356efb6e633e283a9"
   },
   "src/renderer/test/athenaStore.test.ts": {
     "mtime": 1782183058.5002947,
@@ -175,9 +175,9 @@
     "semantic_hash": "c45956f817870fe3ff501697ee411ac4"
   },
   "src/renderer/test/savantClient.test.ts": {
-    "mtime": 1784511906.3263795,
-    "ast_hash": "f1a5e17b9abf0d369c3d18470b29f1c7",
-    "semantic_hash": ""
+    "mtime": 1782094875.9292185,
+    "ast_hash": "5e33d25f078b910d1266c84111dfb720",
+    "semantic_hash": "5e33d25f078b910d1266c84111dfb720"
   },
   "src/renderer/test/setup.ts": {
     "mtime": 1782180074.2736475,
@@ -185,8 +185,8 @@
     "semantic_hash": "2f74b21957036e8bcfab4c69cd980da1"
   },
   "src/renderer/vite-env.d.ts": {
-    "mtime": 1784511932.62095,
-    "ast_hash": "dc975ecda037c2552217415b795f689f",
+    "mtime": 1784083376.613053,
+    "ast_hash": "b790156d387937eb85caa99d8ebcfa96",
     "semantic_hash": ""
   },
   "tsconfig.json": {
@@ -280,9 +280,9 @@
     "semantic_hash": "f40001d7e403b894fc57c9356cb8b740"
   },
   "src/renderer/test/SprintWorkbenchPanel.test.tsx": {
-    "mtime": 1784175927.237517,
-    "ast_hash": "8beed7db728c0823d680a7ea29019382",
-    "semantic_hash": ""
+    "mtime": 1782217760.5428796,
+    "ast_hash": "2022377ef89ee02589da0193d40a0fec",
+    "semantic_hash": "2022377ef89ee02589da0193d40a0fec"
   },
   "jira_tickets_tmp.py": {
     "mtime": 1782256539.1613605,
@@ -290,9 +290,9 @@
     "semantic_hash": "b2f23cbd4761d371a17765e32e8e2607"
   },
   "src/renderer/components/ProductManagerPanel.tsx": {
-    "mtime": 1784378922.0186615,
-    "ast_hash": "177cf6298c8df89f0fec27a303a204cb",
-    "semantic_hash": ""
+    "mtime": 1782661569.955547,
+    "ast_hash": "6b2e0414b715e00273215c6bbd526379",
+    "semantic_hash": "6b2e0414b715e00273215c6bbd526379"
   },
   ".gemini/ralph/state.json": {
     "mtime": 1782431684.4154975,
@@ -300,28 +300,8 @@
     "semantic_hash": "010f4c2b4cece44f65dabd0eadd16b3d"
   },
   "src/main/electron/athenaDb.ts": {
-    "mtime": 1784378981.89206,
-    "ast_hash": "df720063481f909bd2811e7023c05086",
-    "semantic_hash": ""
-  },
-  "src/renderer/components/PeopleManagementPanel.tsx": {
-    "mtime": 1784115354.5321057,
-    "ast_hash": "5f2190c6392e2ac553e67dcf997180af",
-    "semantic_hash": ""
-  },
-  "src/renderer/components/TeamsManagementPanel.tsx": {
-    "mtime": 1784115430.957177,
-    "ast_hash": "e44dc5f4ab67190436000c0b4bef51cf",
-    "semantic_hash": ""
-  },
-  "src/renderer/services/planningWorkflow.ts": {
-    "mtime": 1784173900.5830724,
-    "ast_hash": "d1757e92a9f50bb3e4b891786701b4c2",
-    "semantic_hash": ""
-  },
-  "src/renderer/test/planningWorkflow.test.ts": {
-    "mtime": 1784084966.060171,
-    "ast_hash": "59ac1ebcf3b336e8b8d58c3343ff1c36",
+    "mtime": 1784083361.454835,
+    "ast_hash": "f7341baf0559e0991d2428d5db613f2e",
     "semantic_hash": ""
   }
 }

@@ -144,6 +144,22 @@ describe('savantClient', () => {
       expect(fetch).toHaveBeenCalledWith('http://gw-url/models', expect.any(Object))
     })
 
+    it('filters out disabled providers from /models', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: () => Promise.resolve({
+          providers: [
+            { id: 'codex', label: 'Codex', enabled: true, models: ['gpt-5-codex'] },
+            { id: 'disabled-cli', label: 'Disabled', enabled: false, models: ['some-model'] }
+          ]
+        })
+      } as Response)
+
+      const providers = await listGatewayProviders('http://gw-url')
+      expect(providers).toEqual([{ id: 'codex', label: 'Codex', models: ['gpt-5-codex'] }])
+    })
+
     it('falls back to providerDetails from /health', async () => {
       vi.mocked(fetch)
         .mockRejectedValueOnce(new Error('models unavailable'))

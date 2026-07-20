@@ -174,6 +174,7 @@ function normalizeGatewayProviders(data: any): GatewayProvider[] {
     : []
 
   return rawProviders
+    .filter((provider: any) => provider && provider.enabled !== false)
     .map((provider: any) => {
       const id = String(provider.id || provider.name || provider.provider || '').trim()
       const label = String(provider.label || provider.displayName || provider.name || id).trim()
